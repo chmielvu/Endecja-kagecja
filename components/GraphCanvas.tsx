@@ -93,7 +93,7 @@ export const GraphCanvas: React.FC = () => {
             'text-halign': 'center',
             'text-wrap': 'wrap',
             'text-max-width': '100px',
-            'background-color': '#1e3a25', // Forest Uniform Base (Default)
+            'background-color': '#1e3a25', // Forest Uniform Base
             'border-width': 2,
             'border-style': 'dashed', // The "Stitched" Look
             'border-color': THEME.colors.antiqueBrass,
@@ -136,11 +136,6 @@ export const GraphCanvas: React.FC = () => {
         {
             selector: 'node[type="event"]',
             style: { 'shape': 'diamond', 'background-color': '#78350f' } // Amber base
-        },
-        // Fallback for types not explicitly caught or if Gemini hallucinates
-        {
-            selector: 'node[type != "person"][type != "organization"][type != "event"][type != "concept"][type != "publication"]',
-            style: { 'background-color': '#3f3f46' } // Zinc for unknown
         }
       ],
       wheelSensitivity: 0.2,

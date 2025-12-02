@@ -14,7 +14,7 @@ self.onmessage = (e: MessageEvent) => {
     self.postMessage({ type: 'SUCCESS', graph: enriched });
   } catch (error: any) {
     console.error("Worker Calculation Failed:", error);
-    // Return original graph to avoid app crash, but with minimal meta update to signal completion
+    // Return original graph to avoid app crash, but with minimal meta update
     self.postMessage({ type: 'SUCCESS', graph: { ...graph, meta: { ...graph.meta, lastSaved: Date.now() } } });
   }
 };
@@ -25,7 +25,7 @@ self.onmessage = (e: MessageEvent) => {
 function enrichGraphWithMetrics(graph: KnowledgeGraph): KnowledgeGraph {
   const safeEdges = graph.edges || [];
   
-  if (graph.nodes.length < 2) {
+  if (graph.nodes.length === 0) {
      return { ...graph, meta: { ...graph.meta, modularity: 0, globalBalance: 1 } };
   }
   
@@ -37,21 +37,13 @@ function enrichGraphWithMetrics(graph: KnowledgeGraph): KnowledgeGraph {
     }
   });
 
-  // 1. Calculate Centralities (Defensive)
+  // 1. Calculate Centralities
   let pr: any, bc: any, dcn: any, cc: any;
   try {
-     // Check if we have enough elements
-     if (cy.nodes().length > 0) {
-        pr = cy.elements().pageRank({ dampingFactor: 0.85, precision: 0.000001 });
-        // Betweenness can be slow O(N*E), skip if graph is too large for worker time budget
-        if (cy.nodes().length < 500) {
-            bc = cy.elements().betweennessCentrality({ directed: true });
-        } else {
-            bc = { betweenness: () => 0 };
-        }
-        dcn = cy.elements().degreeCentralityNormalized({ directed: true, weight: () => 1 } as any);
-        cc = cy.elements().closenessCentralityNormalized({ directed: true });
-     }
+     pr = cy.elements().pageRank({ dampingFactor: 0.85, precision: 0.000001 });
+     bc = cy.elements().betweennessCentrality({ directed: true });
+     dcn = cy.elements().degreeCentralityNormalized({ directed: true, weight: () => 1 } as any);
+     cc = cy.elements().closenessCentralityNormalized({ directed: true });
   } catch (e) {
       console.warn("Worker: Centrality calculation failed", e);
       pr = { rank: () => 0.01 };
@@ -75,7 +67,7 @@ function enrichGraphWithMetrics(graph: KnowledgeGraph): KnowledgeGraph {
   try {
       const graphologyGraph = buildGraphologyGraph(graph);
       // Only run Louvain if graph has edges to avoid division by zero or empty errors
-      if (graphologyGraph.order > 1 && graphologyGraph.size > 0) {
+      if (graphologyGraph.order > 0 && graphologyGraph.size > 0) {
         // Safe check for library availability
         if (louvain && typeof (louvain as any).detailed === 'function') {
            const louvainDetails = (louvain as any).detailed(graphologyGraph);

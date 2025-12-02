@@ -192,8 +192,6 @@ export const useStore = create<Store>((set, get) => ({
        storage.save(enriched);
     } catch (e) {
        console.error("Metric recalc failed", e);
-       get().addToast({ title: 'Analytics Error', description: 'Using cached metrics.', type: 'warning' });
-    } finally {
        set({ isThinking: false });
     }
   },
@@ -203,8 +201,6 @@ export const useStore = create<Store>((set, get) => ({
   },
 
   applyPatch: async (patchNodes, patchEdges) => {
-    if (patchNodes.length === 0 && patchEdges.length === 0) return;
-
     get().pushHistory();
     const { graph } = get();
     set({ isThinking: true });
@@ -279,7 +275,6 @@ export const useStore = create<Store>((set, get) => ({
         const enriched = await enrichGraphWithMetricsAsync(updatedGraph);
         set({ graph: enriched, filteredGraph: enriched, pendingPatch: null, isThinking: false });
         storage.save(enriched);
-        get().addToast({ title: 'Patch Applied', description: `Merged ${patchNodes.length} nodes.`, type: 'success' });
     } catch(e) {
         set({ isThinking: false });
         get().addToast({ title: 'Metric Error', description: 'Saved without full analytics.', type: 'warning' });
