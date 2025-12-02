@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Endecja KG Builder</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Spectral:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <script>
       tailwind.config = {
         darkMode: 'class',
@@ -17,16 +17,21 @@
               spectral: ['Spectral', 'serif'],
             },
             colors: {
-              zinc: {
-                850: '#1f1f22',
-                900: '#18181b',
-                950: '#09090b',
-              },
-              // Semantic Tokens
-              'owp-green': '#355e3b',
+              // The Conspiratorial Palette
+              'bunker-dark': '#050a06',
+              'forest-uniform': '#1e3a25',
+              'parchment': '#e5e5c0',
+              'parchment-dim': '#c0c0a0',
+              'antique-brass': '#b45309',
+              'crimson-alert': '#991b1b',
+              'paper-ink': '#1a1a18',
+              // Semantic mappings
+              'owp-green': '#1e3a25', // Replaces vivid green with uniform green
               'archival-gold': '#b45309',
-              'crimson': '#be123c',
-              'surface': '#0c0c0e',
+            },
+            backgroundImage: {
+              'noise': "url('data:image/svg+xml,%3Csvg viewBox=\"0 0 200 200\" xmlns=\"http://www.w3.org/2000/svg\"%3E%3Cfilter id=\"noiseFilter\"%3E%3CfeTurbulence type=\"fractalNoise\" baseFrequency=\"0.65\" numOctaves=\"3\" stitchTiles=\"stitch\"/%3E%3C/filter%3E%3Crect width=\"100%25\" height=\"100%25\" filter=\"url(%23noiseFilter)\" opacity=\"0.05\"/%3E%3C/svg%3E')",
+              'vignette': 'radial-gradient(circle at center, transparent 0%, rgba(5,10,6,0.6) 100%)'
             }
           }
         }

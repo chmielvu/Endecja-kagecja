@@ -2,7 +2,11 @@
 import { GoogleGenAI } from "@google/genai";
 
 const API_KEY = process.env.API_KEY || '';
-const ai = new GoogleGenAI({ apiKey: API_KEY });
+
+// Function to get a fresh GoogleGenAI client instance
+// This ensures that if the API_KEY changes (e.g., via a user selection dialog for Veo models),
+// the client instance is always up-to-date.
+const getEmbeddingAiClient = () => new GoogleGenAI({ apiKey: API_KEY });
 
 // Simple in-memory cache to save API calls during session
 const embeddingsCache = new Map<string, number[]>();
@@ -12,6 +16,7 @@ export async function getEmbedding(text: string): Promise<number[]> {
   if (embeddingsCache.has(text)) return embeddingsCache.get(text)!;
 
   try {
+    const ai = getEmbeddingAiClient(); // Get a fresh client instance
     const response = await ai.models.embedContent({
       model: "text-embedding-004",
       contents: {

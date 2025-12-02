@@ -1,5 +1,5 @@
 
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Spectral:wght@400;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Spectral:wght@400;500;600;700;800&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -7,31 +7,55 @@
 
 @layer base {
   body {
-    @apply bg-[#09090b] text-zinc-100 overflow-hidden selection:bg-owp-green selection:text-white;
+    @apply bg-bunker-dark text-parchment overflow-hidden selection:bg-crimson-alert selection:text-parchment;
+  }
+  
+  /* The "Bunker" Atmosphere */
+  #root::before {
+    content: "";
+    @apply fixed inset-0 bg-noise pointer-events-none z-0 opacity-40 mix-blend-overlay;
+  }
+  #root::after {
+    content: "";
+    @apply fixed inset-0 bg-vignette pointer-events-none z-0;
   }
 }
 
-/* Archival Scrollbar */
-::-webkit-scrollbar { width: 6px; height: 6px; }
-::-webkit-scrollbar-track { background: #0c0c0e; }
-::-webkit-scrollbar-thumb { background: #1e3a25; border-radius: 2px; }
-::-webkit-scrollbar-thumb:hover { background: #355e3b; }
+/* Archival Scrollbar - Brass & Green */
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { @apply bg-bunker-dark border-l border-forest-uniform/30; }
+::-webkit-scrollbar-thumb { @apply bg-forest-uniform border border-antique-brass/30; }
+::-webkit-scrollbar-thumb:hover { @apply bg-antique-brass; }
 
 .font-spectral { font-family: 'Spectral', serif; }
 
 @layer components {
-  .btn-zinc {
-    @apply flex items-center gap-2 px-3 py-2 text-sm text-zinc-300 border border-owp-green/30 bg-owp-green/10 rounded-sm transition-all duration-200 font-sans;
+  /* Tactical/Archival Buttons */
+  .btn-archival {
+    @apply flex items-center gap-2 px-3 py-2 text-sm font-spectral font-bold uppercase tracking-wide
+    text-parchment border border-antique-brass/40 bg-forest-uniform/20 
+    rounded-sm transition-all duration-200 backdrop-blur-sm relative overflow-hidden;
   }
-  .btn-zinc:hover {
-    @apply bg-owp-green/25 border-owp-green text-white shadow-[0_0_10px_rgba(53,94,59,0.1)];
+  .btn-archival:hover {
+    @apply bg-forest-uniform/40 border-antique-brass text-white shadow-[0_0_15px_rgba(180,83,9,0.15)];
+  }
+  .btn-archival:active {
+    @apply transform scale-95;
+  }
+  
+  .panel-bunker {
+    @apply bg-bunker-dark/95 border border-antique-brass/30 shadow-2xl backdrop-blur-md relative z-10;
   }
 }
 
 /* Animations */
-@keyframes pulse-ring {
-  0% { transform: scale(0.33); opacity: 1; }
-  80%, 100% { opacity: 0; }
+@keyframes pulse-glow {
+  0%, 100% { box-shadow: 0 0 5px rgba(180, 83, 9, 0.2); border-color: rgba(180, 83, 9, 0.4); }
+  50% { box-shadow: 0 0 15px rgba(180, 83, 9, 0.5); border-color: rgba(180, 83, 9, 0.8); }
+}
+
+.animate-pulse-glow {
+  animation: pulse-glow 2s infinite;
 }
 
 @keyframes slide-up {

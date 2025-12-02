@@ -1,5 +1,5 @@
 
-export type NodeType = 'person' | 'organization' | 'event' | 'concept' | 'publication' | 'Person' | 'Organization' | 'Event' | 'Concept' | 'Publication';
+export type NodeType = 'person' | 'organization' | 'event' | 'concept' | 'publication';
 
 export interface NodeData {
   id: string;
