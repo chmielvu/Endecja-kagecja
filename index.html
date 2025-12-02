@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Endecja KG Builder</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <script>
+      tailwind.config = {
+        darkMode: 'class',
+        theme: {
+          extend: {
+            fontFamily: {
+              sans: ['Inter', 'sans-serif'],
+              mono: ['JetBrains Mono', 'monospace'],
+              spectral: ['Spectral', 'serif'],
+            },
+            colors: {
+              zinc: {
+                850: '#1f1f22',
+                900: '#18181b',
+                950: '#09090b',
+              },
+              // Semantic Tokens
+              'owp-green': '#355e3b',
+              'archival-gold': '#b45309',
+              'crimson': '#be123c',
+              'surface': '#0c0c0e',
+            }
+          }
+        }
+      }
+    </script>
+  <script type="importmap">
+{
+  "imports": {
+    "react/": "https://aistudiocdn.com/react@^19.2.0/",
+    "react": "https://aistudiocdn.com/react@^19.2.0",
+    "@google/genai": "https://aistudiocdn.com/@google/genai@^1.30.0",
+    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/",
+    "zustand": "https://aistudiocdn.com/zustand@^5.0.8",
+    "lucide-react": "https://aistudiocdn.com/lucide-react@^0.554.0",
+    "cytoscape": "https://aistudiocdn.com/cytoscape@^3.33.1",
+    "cytoscape-cola": "https://aistudiocdn.com/cytoscape-cola@^2.5.1",
+    "path": "https://aistudiocdn.com/path@^0.12.7",
+    "vite": "https://aistudiocdn.com/vite@^7.2.4",
+    "@vitejs/plugin-react": "https://aistudiocdn.com/@vitejs/plugin-react@^5.1.1",
+    "url": "https://aistudiocdn.com/url@^0.11.4",
+    "idb": "https://aistudiocdn.com/idb@^8.0.3",
+    "graphology": "https://aistudiocdn.com/graphology@^0.26.0",
+    "graphology-communities-louvain": "https://aistudiocdn.com/graphology-communities-louvain@^2.0.0"
+  }
+}
+</script>
+<link rel="stylesheet" href="/index.css">
+</head>
+  <body>
+    <div id="root"></div>
+  <script type="module" src="/index.tsx"></script>
+</body>
+</html>

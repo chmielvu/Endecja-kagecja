@@ -1,0 +1,5 @@
+{
+  "name": "ENDECJA KG",
+  "description": "An agentic Knowledge Graph workspace for analyzing historical movements using Gemini 3, NetworkX-style analytics, and dynamic graph expansion.",
+  "requestFramePermissions": []
+}
