@@ -1,5 +1,5 @@
 
-import { FunctionDeclaration, GenerateContentParameters, Part, Type, FunctionCall as GenAI_FunctionCall } from "@google/genai"; // Import Type from @google/genai, and FunctionCall from @google/genai and rename it
+import { GenerateContentParameters, Part, Type, FunctionCall as GenAI_FunctionCall } from "@google/genai"; // Import Type from @google/genai, and FunctionCall from @google/genai and rename it
 
 export type NodeType = 'person' | 'organization' | 'event' | 'concept' | 'publication' | 'document' | 'location'; // Added 'document', 'location'
 
@@ -211,7 +211,28 @@ export interface GraphPatch {
   edges: Partial<EdgeData>[];
 }
 
-// Removed local FunctionCall interface
+// Helper for FunctionDeclaration parameters structure
+export interface FunctionParameterSchema {
+  type: Type;
+  description?: string;
+  properties?: { [key: string]: FunctionParameterSchema };
+  items?: FunctionParameterSchema; // For arrays
+  required?: string[]; // For nested objects
+  enum?: string[];
+}
+
+// Manual definition for FunctionDeclaration, as it may not be directly exported by the CDN version of @google/genai
+export interface FunctionDeclaration {
+  name: string;
+  description?: string;
+  parameters?: {
+    type: Type.OBJECT;
+    properties?: { [key: string]: FunctionParameterSchema };
+    required?: string[];
+    description?: string;
+  };
+}
+
 export type FunctionCall = GenAI_FunctionCall; // Directly use and re-export FunctionCall from @google/genai
 
 export interface ChatMessage {
@@ -334,7 +355,7 @@ export interface GraphRAGIndex {
 }
 
 // Re-export specific types from @google/genai as needed
-export { FunctionDeclaration, Type }; // Removed GenAI_FunctionCall as FunctionCall
+export { Type }; // Removed GenAI_FunctionCall as FunctionCall
 
 // Minimal Tool type to satisfy `tools: Tool[]`
 // Specific union of types allowed by the SDK
