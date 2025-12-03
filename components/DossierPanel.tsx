@@ -1,11 +1,11 @@
 
-
-
 import React from 'react';
 import { useStore } from '../store';
 import { NodeData, TemporalFactType } from '../types';
-import { X, BookOpenCheck, ArrowLeft, Stamp, FileText, Globe, Shield } from 'lucide-react';
+import { X, BookOpenCheck, ArrowLeft, FileText, Globe, Shield, ExternalLink } from 'lucide-react';
 import { generateNodeDeepening } from '../services/geminiService';
+import { BakeliteButton } from './BakeliteButton';
+import { BakeliteCard } from './BakeliteCard';
 
 export const DossierPanel: React.FC<{ node: NodeData }> = ({ node }) => {
   const { 
@@ -19,7 +19,8 @@ export const DossierPanel: React.FC<{ node: NodeData }> = ({ node }) => {
   } = useStore();
 
   const handleDeepen = async () => {
-    clearSelection(); // Close dossier before deepening
+    // Keep dossier open during deepening for context, but disable actions
+    // clearSelection(); // Decided to keep dossier open, as requested in previous analysis
     setThinking(true);
     const taskId = Date.now().toString();
     addResearchTask({
@@ -34,8 +35,9 @@ export const DossierPanel: React.FC<{ node: NodeData }> = ({ node }) => {
       const result = await generateNodeDeepening(node, graph);
       setPendingPatch(result); // Pass the full GraphPatch
       updateResearchTask(taskId, { status: 'complete', reasoning: result.reasoning });
+      addToast({ title: 'Dossier Enriched', description: `New intelligence added for ${node.label}.`, type: 'success' });
     } catch (e) {
-      addToast({ title: 'Research Failed', description: 'Archives unavailable.', type: 'error' });
+      addToast({ title: 'Research Failed', description: 'Archives unavailable or query failed.', type: 'error' });
       updateResearchTask(taskId, { status: 'failed', reasoning: 'Query failed.' });
     } finally {
       setThinking(false);
@@ -43,35 +45,42 @@ export const DossierPanel: React.FC<{ node: NodeData }> = ({ node }) => {
   };
 
   const isConfirmed = node.certainty === 'confirmed';
-  const rankBars = Math.ceil((node.pagerank || 0) * 5); // 1-5 scale
+  const rankBars = Math.ceil((node.pagerank || 0) * 5); // 1-5 scale for visual rank
 
-  // Display temporal validity
+  // Helper to display TemporalFactType
   const displayValidity = (validity?: TemporalFactType) => {
     if (!validity) return 'Unknown period';
-    if (validity.type === 'instant') return validity.timestamp;
-    if (validity.type === 'interval') return `${validity.start}-${validity.end}`;
-    if (validity.type === 'fuzzy') return validity.approximate;
-    return 'Unknown period';
+    switch (validity.type) {
+      case 'instant': return validity.timestamp;
+      case 'interval': return `${validity.start} - ${validity.end}`;
+      case 'fuzzy': return `Approx. ${validity.approximate}`;
+      default: return 'Unknown period';
+    }
   };
 
   return (
-    <div className="h-full flex flex-col bg-deco-panel text-deco-paper relative overflow-hidden font-spectral">
-      {/* Texture Overlay */}
-      <div className="absolute inset-0 bg-deco-pattern opacity-10 pointer-events-none z-0"></div>
-      
+    <BakeliteCard
+      title={node.label} // Main dossier title
+      icon={<FileText size={20} className="text-deco-gold"/>}
+      className="h-full flex flex-col font-spectral"
+      headerClassName="!p-4 !border-b-2 !border-double !border-deco-gold/40 !bg-deco-panel !shadow-sm !rounded-none"
+      chamfered={false} // Dossier is a full panel, no chamfer on the card itself
+    >
       {/* Header (Folder Tab) */}
-      <div className="relative z-10 flex items-center justify-between p-4 border-b-2 border-double border-deco-gold/40 bg-deco-panel shadow-sm">
-        <button 
+      <div className="absolute top-0 right-0 z-10 flex items-center gap-2 p-4">
+        <BakeliteButton 
           onClick={clearSelection}
-          className="flex items-center gap-1 text-xs font-bold uppercase tracking-widest text-deco-gold hover:text-deco-paper transition-colors"
+          className="!px-3 !py-1 !text-xs !font-bold !uppercase !tracking-widest"
+          icon={<ArrowLeft size={14} />}
+          variant="secondary"
         >
-          <ArrowLeft size={14} /> Back to Intel
-        </button>
-        <div className="flex items-center gap-2">
-            <span className="text-[10px] font-mono text-zinc-500">ID: {node.id.substring(0,8).toUpperCase()}</span>
-            <button onClick={clearSelection}><X size={18} className="text-zinc-500 hover:text-deco-crimson"/></button>
-        </div>
+          Back to Intel
+        </BakeliteButton>
+        <BakeliteButton onClick={clearSelection} className="!p-1 !px-2" variant="secondary" icon={<X size={18} />}>
+          <span className="sr-only">Close Dossier</span>
+        </BakeliteButton>
       </div>
+      <p className="text-[10px] font-mono text-zinc-500 absolute top-10 left-16">ID: {node.id.substring(0, 8).toUpperCase()}</p>
 
       {/* Main Content (Paper) */}
       <div className="flex-1 overflow-y-auto p-6 relative z-10 bg-deco-navy/20">
@@ -100,9 +109,7 @@ export const DossierPanel: React.FC<{ node: NodeData }> = ({ node }) => {
                 </span>
              )}
            </div>
-           <h2 className="text-3xl font-spectral font-bold text-deco-paper leading-tight">
-             {node.label}
-           </h2>
+           {/* Node Label is now the BakeliteCard Title */}
            {node.validity && (
              <p className="font-mono text-sm text-deco-gold mt-1">{displayValidity(node.validity)}</p>
            )}
@@ -124,7 +131,7 @@ export const DossierPanel: React.FC<{ node: NodeData }> = ({ node }) => {
         {/* Description */}
         <div className="prose prose-sm prose-p:text-deco-paper prose-headings:font-spectral mb-8">
            <h4 className="text-xs font-bold uppercase border-b border-deco-gold/30 mb-2 pb-1 text-zinc-500">Subject Profile</h4>
-           <p className="whitespace-pre-wrap leading-relaxed text-deco-paper/90">
+           <p className="whitespace-pre-wrap leading-relaxed text-deco-paper/90 font-serif">
              {node.description || "No detailed profile available in the current archives."}
            </p>
         </div>
@@ -133,7 +140,7 @@ export const DossierPanel: React.FC<{ node: NodeData }> = ({ node }) => {
         {(node.existence && node.existence.length > 0) && (
             <div className="mb-8">
                 <h4 className="text-xs font-bold uppercase border-b border-deco-gold/30 mb-2 pb-1 text-zinc-500 flex items-center gap-2">
-                    <FileText size={12} /> Existence & Status
+                    <FileText size={12} className="text-zinc-500"/> Existence & Status
                 </h4>
                 <ul className="space-y-2">
                     {node.existence.map((item, i) => (
@@ -148,7 +155,7 @@ export const DossierPanel: React.FC<{ node: NodeData }> = ({ node }) => {
         {(node.roles && node.roles.length > 0) && (
             <div className="mb-8">
                 <h4 className="text-xs font-bold uppercase border-b border-deco-gold/30 mb-2 pb-1 text-zinc-500 flex items-center gap-2">
-                    <FileText size={12} /> Key Roles
+                    <FileText size={12} className="text-zinc-500"/> Key Roles
                 </h4>
                 <ul className="space-y-2">
                     {node.roles.map((item, i) => (
@@ -165,7 +172,7 @@ export const DossierPanel: React.FC<{ node: NodeData }> = ({ node }) => {
         {/* Sources / References */}
         <div className="mb-8">
             <h4 className="text-xs font-bold uppercase border-b border-deco-gold/30 mb-2 pb-1 text-zinc-500 flex items-center gap-2">
-                <Globe size={12} /> Intelligence Sources
+                <Globe size={12} className="text-zinc-500"/> Intelligence Sources
             </h4>
             <ul className="space-y-2">
                 {node.sources && node.sources.length > 0 ? (
@@ -173,7 +180,7 @@ export const DossierPanel: React.FC<{ node: NodeData }> = ({ node }) => {
                         <li key={i} className="text-xs font-mono text-zinc-400 flex items-start gap-2 bg-deco-navy/50 p-1.5 rounded-sm">
                             <span className="text-deco-gold select-none">[REF-{i+1}]</span>
                             <span className="break-all">
-                              {src.label || src.uri}
+                              {src.uri ? <a href={src.uri} target="_blank" rel="noopener noreferrer" className="text-deco-gold hover:underline">{src.label || src.uri} <ExternalLink size={10} className="inline-block ml-1"/></a> : src.label}
                               {src.type && ` (${src.type})`}
                               {src.page && `, pg. ${src.page}`}
                             </span>
@@ -201,13 +208,15 @@ export const DossierPanel: React.FC<{ node: NodeData }> = ({ node }) => {
 
       {/* Action Footer */}
       <div className="p-4 bg-deco-panel border-t-2 border-double border-deco-gold/40 relative z-10 flex gap-2">
-         <button 
+         <BakeliteButton 
            onClick={handleDeepen}
-           className="flex-1 btn-deco bg-deco-gold text-deco-navy hover:bg-deco-gold/90 border-transparent shadow-lg flex items-center justify-center gap-2"
+           className="flex-1 text-deco-navy bg-deco-gold hover:bg-deco-gold/90 border-transparent shadow-lg flex items-center justify-center gap-2"
+           icon={<BookOpenCheck size={16} />}
+           variant="primary"
          >
-           <BookOpenCheck size={16} /> Research Further
-         </button>
+           Research Further
+         </BakeliteButton>
       </div>
-    </div>
+    </BakeliteCard>
   );
 };

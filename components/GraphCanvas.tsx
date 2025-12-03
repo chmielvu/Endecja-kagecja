@@ -1,6 +1,4 @@
 
-
-
 import React, { useEffect, useRef, useState } from 'react';
 import cytoscape from 'cytoscape';
 import cola from 'cytoscape-cola';
@@ -10,17 +8,10 @@ import { NodeData, TemporalFactType } from '../types';
 import { generateNodeDeepening } from '../services/geminiService';
 import { getRankInsigniaSVG } from '../services/styleUtils';
 import { BookOpenCheck, X, Link, Shield } from 'lucide-react';
+import { getYearFromTemporalFact } from '../services/geminiService'; // Import the shared helper
 
 // Register the Cola extension
 cytoscape.use(cola);
-
-// Helper to extract a single year from TemporalFactType for filtering
-function getYearFromTemporalFact(temporal?: TemporalFactType): number | undefined {
-  if (!temporal) return undefined;
-  if (temporal.type === 'instant') return parseInt(temporal.timestamp);
-  if (temporal.type === 'interval') return parseInt(temporal.start);
-  return undefined;
-}
 
 export const GraphCanvas: React.FC = () => {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -241,10 +232,26 @@ export const GraphCanvas: React.FC = () => {
             }
          });
          // TODO: Implement temporal filtering for edges based on EdgeData.temporal
+         cy.edges().forEach(edge => {
+            const edgeYear = getYearFromTemporalFact(edge.data('temporal'));
+            if (!edgeYear) {
+                edge.style('opacity', 0.2); // Dim timeless edges
+                edge.style('display', 'element');
+            } else if (edgeYear > timelineYear) {
+                edge.style('display', 'none');
+            } else {
+                edge.style('opacity', 0.7); // Default opacity for visible edges
+                edge.style('display', 'element');
+            }
+         });
       } else { // No timeline filter
         cy.nodes().forEach(node => {
           node.style('opacity', 1);
           node.style('display', 'element');
+        });
+        cy.edges().forEach(edge => {
+            edge.style('opacity', 0.7);
+            edge.style('display', 'element');
         });
       }
     });

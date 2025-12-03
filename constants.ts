@@ -37,33 +37,39 @@ const DATA = {
     { 
       "id": "dmowski_roman", "label": "Roman Dmowski", "type": "person", 
       "validity": { type: 'interval', start: '1864', end: '1939' } as TemporalFactType, 
-      "importance": 1.0, "certainty": "confirmed",
-      "sources": [{ uri: "https://pl.wikipedia.org/wiki/Roman_Dmowski", label: "Wikipedia" }] as SourceCitation[]
+      "importance": 1.0, "certainty": "confirmed" as NodeData['certainty'],
+      "sources": [{ uri: "https://pl.wikipedia.org/wiki/Roman_Dmowski", label: "Wikipedia", type: 'website' }] as SourceCitation[],
+      "existence": [{ start: '1864', end: '1939', status: 'formed' as const, context: 'Born, died' }]
     },
     { 
       "id": "liga_narodowa", "label": "Liga Narodowa", "type": "organization", 
       "validity": { type: 'interval', start: '1893', end: '1928' } as TemporalFactType, 
-      "importance": 1.0, "certainty": "confirmed",
-      "region": { id: 'poland', label: 'Poland', type: 'country' } as RegionInfo
+      "importance": 1.0, "certainty": "confirmed" as NodeData['certainty'],
+      "region": { id: 'poland', label: 'Poland', type: 'country' } as RegionInfo,
+      "sources": [{ uri: "https://pl.wikipedia.org/wiki/Liga_Narodowa", label: "Wikipedia", type: 'website' }] as SourceCitation[],
+      "existence": [{ start: '1893', end: '1928', status: 'formed' as const, context: 'Active as a political organization' }]
     },
     { 
       "id": "mysli_polaka", "label": "Myśli nowoczesnego Polaka", "type": "publication", 
       "validity": { type: 'instant', timestamp: '1903' } as TemporalFactType, 
-      "importance": 0.8, "certainty": "confirmed"
+      "importance": 0.8, "certainty": "confirmed" as NodeData['certainty'],
+      "sources": [{ uri: "https://pl.wikipedia.org/wiki/My%C5%9Bli_nowoczesnego_Polaka", label: "Wikipedia", type: 'website' }] as SourceCitation[]
     }
   ],
   "edges": [
      { 
-       "source": "dmowski_roman", "target": "liga_narodowa", "relationType": "founded", 
+       "source": "dmowski_roman", "target": "liga_narodowa", "relationType": "founded" as EdgeData['relationType'], 
        "temporal": { type: 'instant', timestamp: '1893' } as TemporalFactType, 
-       "sources": [{ uri: "https://pl.wikipedia.org/wiki/Liga_Narodowa", label: "Wikipedia" }] as SourceCitation[],
-       "certainty": "confirmed"
+       "sources": [{ uri: "https://pl.wikipedia.org/wiki/Liga_Narodowa", label: "Wikipedia", type: 'website' }] as SourceCitation[],
+       "certainty": "confirmed" as EdgeData['certainty'],
+       "sign": "positive" as EdgeData['sign']
      },
      { 
-       "source": "dmowski_roman", "target": "mysli_polaka", "relationType": "authored", 
+       "source": "dmowski_roman", "target": "mysli_polaka", "relationType": "authored" as EdgeData['relationType'], 
        "temporal": { type: 'instant', timestamp: '1903' } as TemporalFactType,
-       "sources": [{ uri: "https://pl.wikipedia.org/wiki/My%C5%9Bli_nowoczesnego_Polaka", label: "Wikipedia" }] as SourceCitation[],
-       "certainty": "confirmed"
+       "sources": [{ uri: "https://pl.wikipedia.org/wiki/My%C5%9Bli_nowoczesnego_Polaka", label: "Wikipedia", type: 'website' }] as SourceCitation[],
+       "certainty": "confirmed" as EdgeData['certainty'],
+       "sign": "positive" as EdgeData['sign']
      }
   ]
 };
@@ -76,9 +82,12 @@ const mappedNodes: GraphNode[] = DATA.nodes.map(n => ({
     type: n.type as NodeType,
     validity: n.validity,
     importance: n.importance || 0.5,
-    certainty: n.certainty as NodeData['certainty'],
+    certainty: n.certainty,
     sources: n.sources,
     region: n.region,
+    existence: n.existence,
+    // Fix: Ensure roles property exists, providing an empty array if undefined
+    roles: n.roles || [],
   }
 }));
 
@@ -87,11 +96,12 @@ const mappedEdges: GraphEdge[] = DATA.edges.map((e, i) => ({
     id: `edge_${i}`,
     source: e.source,
     target: e.target,
-    relationType: e.relationType as EdgeData['relationType'],
+    relationType: e.relationType,
     temporal: e.temporal,
-    certainty: e.certainty as EdgeData['certainty'],
+    certainty: e.certainty,
     sources: e.sources,
-    sign: 'positive' // Default sign for initial edges
+    // Fix: Ensure sign is explicitly cast to 'positive' | 'negative' | 'neutral'
+    sign: e.sign || 'positive' as EdgeData['sign'] // Default sign for initial edges
   }
 }));
 

@@ -1,27 +1,18 @@
 
-
-
 import cytoscape from 'cytoscape';
 import louvain from 'graphology-communities-louvain';
-import { KnowledgeGraph, NodeData, EdgeData, TemporalFactType, GraphEdge } from '../types'; // Fix: Import GraphEdge
+import { KnowledgeGraph, NodeData, EdgeData, TemporalFactType, GraphEdge } from '../types';
 import { buildGraphologyGraph } from './graphUtils';
 import { THEME } from '../constants'; // Import THEME for consistent color usage
-
-// Helper to extract a single year from TemporalFactType for filtering
-function getYearFromTemporalFact(temporal?: TemporalFactType): number | undefined {
-  if (!temporal) return undefined;
-  if (temporal.type === 'instant') return parseInt(temporal.timestamp);
-  if (temporal.type === 'interval') return parseInt(temporal.start);
-  return undefined;
-}
+import { getYearFromTemporalFact } from './geminiService'; // Fix: Import from geminiService
 
 // --- Worker Message Handler ---
 self.onmessage = (e: MessageEvent) => {
-  const { graph } = e.data;
+  const { graph, timelineYear } = e.data; // Now worker can receive timelineYear
   if (!graph) return;
 
   try {
-    const enriched = enrichGraphWithMetrics(graph);
+    const enriched = enrichGraphWithMetrics(graph, timelineYear); // Pass timelineYear
     self.postMessage({ type: 'SUCCESS', graph: enriched });
   } catch (error: any) {
     console.error("Worker Calculation Failed:", error);
@@ -32,21 +23,33 @@ self.onmessage = (e: MessageEvent) => {
 
 /**
  * Calculates robust graph metrics using a headless Cytoscape instance.
- * TODO: This function needs to be updated to accept a 'timelineYear' parameter
- * and filter nodes/edges for the temporal subgraph before calculating metrics.
+ * Filters nodes/edges based on `timelineYear` before calculating metrics to
+ * provide temporal subgraph analysis.
  */
-function enrichGraphWithMetrics(graph: KnowledgeGraph): KnowledgeGraph {
-  const safeEdges = graph.edges || [];
+function enrichGraphWithMetrics(graph: KnowledgeGraph, timelineYear: number | null = null): KnowledgeGraph {
   
-  if (graph.nodes.length === 0) {
-     return { ...graph, meta: { ...graph.meta, modularity: 0, globalBalance: 1 } };
+  let filteredNodes = graph.nodes;
+  let filteredEdges = graph.edges;
+
+  if (timelineYear !== null) {
+      filteredNodes = graph.nodes.filter(n => {
+          const nodeYear = getYearFromTemporalFact(n.data.validity);
+          return nodeYear === undefined || nodeYear <= timelineYear;
+      });
+      filteredEdges = graph.edges.filter(e => {
+          const edgeYear = getYearFromTemporalFact(e.data.temporal);
+          return edgeYear === undefined || edgeYear <= timelineYear;
+      });
+      // Ensure edges only connect filtered nodes
+      const filteredNodeIds = new Set(filteredNodes.map(n => n.data.id));
+      filteredEdges = filteredEdges.filter(e => filteredNodeIds.has(e.data.source) && filteredNodeIds.has(e.data.target));
   }
   
   const cy = cytoscape({
     headless: true,
     elements: {
-      nodes: graph.nodes.map(n => ({ data: { ...n.data } })),
-      edges: safeEdges.map(e => ({ data: { ...e.data } }))
+      nodes: filteredNodes.map(n => ({ data: { ...n.data } })),
+      edges: filteredEdges.map(e => ({ data: { ...e.data } }))
     }
   });
 
@@ -55,7 +58,6 @@ function enrichGraphWithMetrics(graph: KnowledgeGraph): KnowledgeGraph {
   try {
      pr = cy.elements().pageRank({ dampingFactor: 0.85, precision: 0.000001 });
      // Only calculate betweenness for smaller graphs to avoid performance bottlenecks
-     // Fix: Removed 'root' option as it's not valid for betweennessCentrality
      bc = cy.elements().betweennessCentrality({ directed: true }); 
      dcn = cy.elements().degreeCentralityNormalized({ directed: true, weight: () => 1 } as any);
      cc = cy.elements().closenessCentralityNormalized({ directed: true });
@@ -82,7 +84,7 @@ function enrichGraphWithMetrics(graph: KnowledgeGraph): KnowledgeGraph {
   let largestCommunitySize = 0;
   
   try {
-      const graphologyGraph = buildGraphologyGraph(graph);
+      const graphologyGraph = buildGraphologyGraph({ nodes: filteredNodes, edges: filteredEdges }); // Build graph from filtered data
       // Only run Louvain if graph has edges to avoid division by zero or empty errors
       if (graphologyGraph.order > 0 && graphologyGraph.size > 0) {
         // Safe check for library availability
@@ -105,13 +107,27 @@ function enrichGraphWithMetrics(graph: KnowledgeGraph): KnowledgeGraph {
   }
 
   // 4. Edge Metrics & Balance
-  const processedEdges = processEdgeMetrics(safeEdges);
-  const globalBalance = calculateTriadicBalance({ nodes: graph.nodes, edges: processedEdges });
+  const processedEdges = processEdgeMetrics(filteredEdges); // Use filtered edges
+  const globalBalance = calculateTriadicBalance({ nodes: filteredNodes, edges: processedEdges });
 
   const pageRankMap = new Map<string, number>();
 
   // 5. Enrich Nodes with Metrics
-  const newNodes = graph.nodes.map(node => {
+  const newNodes = graph.nodes.map(node => { // Iterate original nodes to update all
+    // If node was filtered out, just return original. Metrics only for filtered part.
+    if (!filteredNodes.some(n => n.data.id === node.data.id)) {
+        // Reset metrics for nodes not in the active temporal subgraph
+        return {
+            ...node,
+            data: {
+                ...node.data,
+                degreeCentrality: 0, pagerank: 0, betweenness: 0, closeness: 0, clustering: 0,
+                louvainCommunity: -1, // Indicate not part of active community
+                security: { efficiency: 0, safety: 0, balance: 0, risk: 0, vulnerabilities: [] }
+            }
+        };
+    }
+
     try {
         const ele = cy.getElementById(node.data.id);
         if (ele.length === 0) return node;
@@ -182,7 +198,12 @@ function enrichGraphWithMetrics(graph: KnowledgeGraph): KnowledgeGraph {
   });
 
   // 6. Calculate Edge Weights based on PageRank importance
-  const weightedEdges = processedEdges.map(edge => {
+  const weightedEdges = graph.edges.map(edge => { // Iterate original edges
+    // If edge was filtered out, just return original, or set weight to 0.
+    if (!filteredEdges.some(e => e.data.id === edge.data.id)) {
+        return { ...edge, data: { ...edge.data, weight: 0 } };
+    }
+
     const prSource = pageRankMap.get(edge.data.source) || 0;
     const prTarget = pageRankMap.get(edge.data.target) || 0;
     const weight = (prSource + prTarget) / 2;
@@ -196,13 +217,13 @@ function enrichGraphWithMetrics(graph: KnowledgeGraph): KnowledgeGraph {
     };
   });
 
-  // Calculate global metrics for meta
+  // Calculate global metrics for meta using filtered graph
   const numConnectedComponents = cy.elements().components().length;
   const isConnected = numConnectedComponents === 1 && cy.nodes().length > 0;
   
   return {
-    nodes: newNodes,
-    edges: weightedEdges,
+    nodes: newNodes, // Return all nodes, but with updated metrics
+    edges: weightedEdges, // Return all edges, but with updated weights
     meta: {
       ...graph.meta,
       modularity: parseFloat(modularity.toFixed(3)), // Legacy
@@ -210,7 +231,7 @@ function enrichGraphWithMetrics(graph: KnowledgeGraph): KnowledgeGraph {
       globalMetrics: { // New structured global metrics
         // Fix: Use cy.nodes().length and cy.edges().length
         density: cy.nodes().length > 1 ? (cy.edges().length * 2) / (cy.nodes().length * (cy.nodes().length - 1)) : 0,
-        transitivity: clusteringMap ? Object.values(clusteringMap).reduce((sum, val) => sum + val, 0) / cy.nodes().length : 0,
+        transitivity: cy.nodes().length > 0 && clusteringMap ? Object.values(clusteringMap).reduce((sum, val) => sum + val, 0) / cy.nodes().length : 0,
         is_connected: isConnected,
         number_connected_components: numConnectedComponents
       },

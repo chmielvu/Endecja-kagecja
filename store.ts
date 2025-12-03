@@ -1,6 +1,4 @@
 
-
-
 import { create } from 'zustand';
 import { 
   AppState, 
@@ -13,17 +11,17 @@ import {
   GraphPatch, 
   ResearchTask, 
   GraphNode, 
-  GraphEdge, // Fix: Import EdgeData
+  GraphEdge, 
   LayoutParams, 
   PythonAnalysisResult,
   TemporalFactType,
   SourceCitation,
   RegionInfo,
-  EdgeData // Fix: Import EdgeData
+  EdgeData
 } from './types';
 import { INITIAL_GRAPH } from './constants';
 import { enrichGraphWithMetricsAsync, calculateRegionalMetrics } from './services/graphService';
-import { parseTemporalFact } from './services/geminiService'; // Fix: Import parseTemporalFact
+import { parseTemporalFact } from './services/geminiService'; 
 import { storage } from './services/storage';
 
 interface HistoryState {
@@ -265,8 +263,7 @@ export const useStore = create<Store>((set, get) => ({
         if (pn.validity) {
           validity = pn.validity;
         } else if (pn.dates) { // Fallback from old string 'dates'
-          // Fix: Ensure getYearFromTemporalFact is called on the result of parseTemporalFact
-          validity = getYearFromTemporalFact(parseTemporalFact(pn.dates)) ? parseTemporalFact(pn.dates) : undefined;
+          validity = parseTemporalFact(pn.dates);
         } else if (pn.year) { // Fallback from old 'year' number
           validity = { type: 'instant', timestamp: String(pn.year) };
         }
@@ -325,8 +322,7 @@ export const useStore = create<Store>((set, get) => ({
         if (pe.temporal) {
           temporal = pe.temporal;
         } else if (pe.dates) { // Fallback from old string 'dates'
-          // Fix: Ensure getYearFromTemporalFact is called on the result of parseTemporalFact
-          temporal = getYearFromTemporalFact(parseTemporalFact(pe.dates)) ? parseTemporalFact(pe.dates) : undefined;
+          temporal = parseTemporalFact(pe.dates);
         } else if (pe.validFrom) { // Fallback from old 'validFrom' number
           temporal = { type: 'instant', timestamp: String(pe.validFrom) };
         }
@@ -458,8 +454,13 @@ export const useStore = create<Store>((set, get) => ({
       if (!newData.region || (typeof newData.region === 'object' && !newData.region.id) && dropNode.data.region) newData.region = dropNode.data.region;
       if (!newData.description && dropNode.data.description) newData.description = dropNode.data.description;
       if (!newData.validity && dropNode.data.validity) newData.validity = dropNode.data.validity;
-      if (!newData.sources && dropNode.data.sources) newData.sources = dropNode.data.sources;
-      // TODO: Smarter merging of arrays like 'existence', 'roles', 'sources'
+      // Smarter merging of arrays: concat unique sources, existence, roles
+      newData.sources = [...(newData.sources || []), ...(dropNode.data.sources || [])]
+        .filter((s, i, a) => a.findIndex(item => item.uri === s.uri) === i); // Deduplicate by URI
+      newData.existence = [...(newData.existence || []), ...(dropNode.data.existence || [])]
+        .filter((e, i, a) => a.findIndex(item => item.start === e.start && item.status === e.status) === i); // Deduplicate by start/status
+      newData.roles = [...(newData.roles || []), ...(dropNode.data.roles || [])]
+        .filter((r, i, a) => a.findIndex(item => item.role === r.role && item.organization === r.organization) === i); // Deduplicate by role/org
 
       const updatedEdges = graph.edges.map(e => {
         let edgeData = { ...e.data };

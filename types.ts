@@ -1,5 +1,4 @@
 
-
 export type NodeType = 'person' | 'organization' | 'event' | 'concept' | 'publication' | 'document' | 'location'; // Added 'document', 'location'
 
 // New: Structured Source Citation

@@ -1,10 +1,10 @@
 
-
 import Graph from 'graphology';
 import louvain from 'graphology-communities-louvain';
 import { KnowledgeGraph, GraphRAGIndex, CommunitySummary, NodeData } from '../types';
 import { generateCommunityInsight } from './geminiService';
 import { buildGraphologyGraph } from './graphUtils';
+import { getYearFromTemporalFact } from './geminiService'; // Fix: Import from geminiService
 
 /**
  * GraphRAG Index Builder
@@ -61,7 +61,8 @@ export async function buildGraphRAGIndex(graph: KnowledgeGraph): Promise<GraphRA
 
        const summaryText = await generateCommunityInsight(commNodes, commEdges);
        
-       const years = commNodes.map(n => n.year).filter(y => y !== undefined) as number[];
+       // Extract years from new NodeData.validity
+       const years = commNodes.map(n => getYearFromTemporalFact(n.validity)).filter(y => y !== undefined) as number[];
        const timespan = years.length > 0 ? `${Math.min(...years)}-${Math.max(...years)}` : 'Unknown';
        
        // Fix: Access region.label for filtering and counting

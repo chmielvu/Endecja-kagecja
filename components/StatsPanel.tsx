@@ -1,8 +1,9 @@
+
 import React from 'react';
 import { useStore } from '../store';
 import { X, Activity, Globe, Share2, Layers } from 'lucide-react';
-import { BakeliteCard } from './BakeliteCard'; // NEW IMPORT
-import { BakeliteButton } from './BakeliteButton'; // NEW IMPORT
+import { BakeliteCard } from './BakeliteCard';
+import { BakeliteButton } from './BakeliteButton';
 
 export const StatsPanel: React.FC = () => {
   const { graph, showStatsPanel, setShowStatsPanel } = useStore();
@@ -28,11 +29,6 @@ export const StatsPanel: React.FC = () => {
   const avgDegree = (nodeCount > 0 ? (2 * edgeCount / nodeCount) : 0).toFixed(2);
   const globalBalance = ((graph.meta?.globalBalance || 0) * 100).toFixed(1);
 
-  // Top Nodes by PageRank from either new meta or existing node data
-  const topNodes = [...graph.nodes]
-    .sort((a, b) => (b.data.pagerank || 0) - (a.data.pagerank || 0))
-    .slice(0, 5);
-  
   // Top Influencers from Python analysis
   const keyInfluencers = graph.meta?.keyInfluencers || [];
 
@@ -75,7 +71,7 @@ export const StatsPanel: React.FC = () => {
            </div>
 
            <div>
-             <h4 className="text-xs font-bold text-deco-gold uppercase mb-4">Key Influencers (PageRank)</h4>
+             <h4 className="text-xs font-bold text-deco-gold uppercase mb-4">Key Influencers</h4>
              <div className="space-y-2">
                {keyInfluencers.length > 0 ? keyInfluencers.map((n, i) => (
                  <div key={n.id} className="flex items-center gap-2">
@@ -84,16 +80,13 @@ export const StatsPanel: React.FC = () => {
                      <div className="h-full bg-deco-green" style={{ width: `${(n.score || 0) * 1000}%` }}></div>
                    </div>
                    <span className="text-xs text-deco-paper truncate w-24">{n.label}</span>
+                   <span className="text-[9px] font-mono text-zinc-600 uppercase">{n.metric}</span>
                  </div>
-               )) : topNodes.map((n, i) => ( // Fallback to client-side pagerank if no Python analysis
-                 <div key={n.data.id} className="flex items-center gap-2">
-                   <span className="text-xs font-mono text-zinc-600 w-4">{i+1}.</span>
-                   <div className="flex-1 h-2 bg-zinc-800 rounded-full overflow-hidden">
-                     <div className="h-full bg-deco-green" style={{ width: `${(n.data.pagerank || 0) * 1000}%` }}></div>
-                   </div>
-                   <span className="text-xs text-deco-paper truncate w-24">{n.data.label}</span>
+               )) : ( // Fallback to client-side pagerank if no Python analysis
+                 <div className="text-center text-zinc-600 text-sm py-4 italic">
+                   Run Python Analysis for detailed influencers.
                  </div>
-               ))}
+               )}
              </div>
            </div>
         </div>

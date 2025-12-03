@@ -1,5 +1,4 @@
 
-
 import { GoogleGenAI } from "@google/genai";
 import { 
   ChatMessage, 
@@ -35,6 +34,15 @@ export function parseTemporalFact(dateString?: string, yearNum?: number): Tempor
   if (yearNum) {
     return { type: 'instant', timestamp: String(yearNum) };
   }
+  return undefined;
+}
+
+// Helper to extract a single year from TemporalFactType for filtering
+// Exported for reuse in other services (e.g., GraphCanvas, RAGService, TemporalReasoningService)
+export function getYearFromTemporalFact(temporal?: TemporalFactType): number | undefined {
+  if (!temporal) return undefined;
+  if (temporal.type === 'instant') return parseInt(temporal.timestamp);
+  if (temporal.type === 'interval') return parseInt(temporal.start);
   return undefined;
 }
 
@@ -207,7 +215,7 @@ export async function analyzeDocument(
     - type: "person|organization|event|concept|publication|location|document"
     - description: "Brief context"
     - validity: { type: "instant"|"interval"|"fuzzy", timestamp/start/approximate: "YYYY..." }
-    - region?: { id: "slug", label: "Region Name", type: "city|province|country" }
+    - region?: { id: "slug", label: "Region Name", type: "city|province|country|historical_region" }
     - sources: [{ uri: "${file.name}", label: "Document Scan", type: "archival" }]
     
     SCHEMA for Edges:
@@ -285,7 +293,7 @@ export async function generateGraphExpansion(
     - type: "person|organization|event|concept|publication|location"
     - description: "Short description with historical context."
     - validity: { type: "instant"|"interval"|"fuzzy", timestamp/start/approximate: "YYYY..." }
-    - region?: { id: "slug", label: "Region Name", type: "city|province|country" }
+    - region?: { id: "slug", label: "Region Name", type: "city|province|country|historical_region" }
     - sources: [{ uri: "https://...", label: "Source Title", type: "website" }]
     
     SCHEMA for Edges:
@@ -353,8 +361,8 @@ export async function generateNodeDeepening(
     OUTPUT SCHEMA for updatedProperties:
     - description: "More detailed biography/context."
     - validity?: { type: "instant"|"interval"|"fuzzy", timestamp/start/approximate: "YYYY..." }
-    - region?: { id: "slug", label: "Region Name", type: "city|province|country" }
-    - existence?: Array<{ start: string; end?: string; status: string; context?: string; }> (for orgs)
+    - region?: { id: "slug", label: "Region Name", type: "city|province|country|historical_region" }
+    - existence?: Array<{ start: string; end?: string; status: "active"|"latent"|"defunct"|"reformed"|"formed"|"dissolved"|"established"; context?: string; }> (for orgs)
     - roles?: Array<{ role: string; organization?: string; start: string; end?: string; context?: string; }> (for persons)
     - sources: [{ uri: "https://...", label: "Source Title", type: "website" }]
     

@@ -1,10 +1,11 @@
+
 import React, { useState, useEffect } from 'react';
 import { useStore } from '../store';
-import { X, Save, Trash, Shield, BookOpen } from 'lucide-react';
+import { X, Save, Trash, Shield } from 'lucide-react'; // Removed BookOpen icon as it's not directly used
 import { NodeType, SourceCitation, RegionInfo, TemporalFactType } from '../types';
-import { BakeliteInput } from './BakeliteInput'; // NEW IMPORT
-import { BakeliteButton } from './BakeliteButton'; // NEW IMPORT
-import { BakeliteCard } from './BakeliteCard'; // NEW IMPORT
+import { BakeliteInput } from './BakeliteInput';
+import { BakeliteButton } from './BakeliteButton';
+import { BakeliteCard } from './BakeliteCard';
 
 // Helper to parse temporal strings
 function parseTemporalInput(input: string): TemporalFactType | undefined {
@@ -25,6 +26,8 @@ export const NodeEditorModal: React.FC = () => {
   const [formData, setFormData] = useState<any>({});
   const [temporalInput, setTemporalInput] = useState<string>('');
   const [regionInput, setRegionInput] = useState<string>('');
+  const [existenceInput, setExistenceInput] = useState<string>('');
+  const [rolesInput, setRolesInput] = useState<string>('');
 
 
   useEffect(() => {
@@ -50,6 +53,18 @@ export const NodeEditorModal: React.FC = () => {
         } else {
           setRegionInput('');
         }
+        // Convert existence array to string for textarea
+        if (node.existence && node.existence.length > 0) {
+          setExistenceInput(node.existence.map(e => `${e.start}-${e.end || ''}:${e.status}${e.context ? ` (${e.context})` : ''}`).join('\n'));
+        } else {
+          setExistenceInput('');
+        }
+        // Convert roles array to string for textarea
+        if (node.roles && node.roles.length > 0) {
+          setRolesInput(node.roles.map(r => `${r.role}${r.organization ? ` in ${r.organization}` : ''}:${r.start}-${r.end || ''}`).join('\n'));
+        } else {
+          setRolesInput('');
+        }
       }
     }
   }, [editingNodeId, graph]);
@@ -58,7 +73,7 @@ export const NodeEditorModal: React.FC = () => {
 
   const handleSave = () => {
     // Convert string back to SourceCitation[]
-    const sourcesArray: SourceCitation[] = temporalInput ? 
+    const sourcesArray: SourceCitation[] = formData.sources ? 
       formData.sources.split('\n').map((uri: string) => ({ uri: uri.trim(), label: uri.trim() })) : [];
 
     // Convert string back to RegionInfo
@@ -71,12 +86,40 @@ export const NodeEditorModal: React.FC = () => {
     // Convert string back to TemporalFactType
     const validityObj: TemporalFactType | undefined = parseTemporalInput(temporalInput);
 
+    // Convert existence string back to array
+    const existenceArray = existenceInput ? existenceInput.split('\n').map(line => {
+      const parts = line.split(':');
+      const dates = parts[0]?.split('-');
+      const statusContext = parts[1]?.trim().match(/^(\w+)(?:\s*\((.*)\))?$/);
+      return {
+        start: dates[0]?.trim(),
+        end: dates[1]?.trim() || undefined,
+        status: (statusContext?.[1]?.trim() || 'active') as any, // Cast to any because it's a union type
+        context: statusContext?.[2]?.trim() || undefined
+      };
+    }).filter(e => e.start) : undefined;
+
+    // Convert roles string back to array
+    const rolesArray = rolesInput ? rolesInput.split('\n').map(line => {
+      const roleOrg = line.split(':')[0]?.trim();
+      const dates = line.split(':')[1]?.split('-');
+      const roleMatch = roleOrg?.match(/^(.+?)(?:\s*in\s*(.+))?$/);
+      return {
+        role: roleMatch?.[1]?.trim(),
+        organization: roleMatch?.[2]?.trim() || undefined,
+        start: dates?.[0]?.trim(),
+        end: dates?.[1]?.trim() || undefined,
+      };
+    }).filter(r => r.role) : undefined;
+
 
     updateNode(editingNodeId, { 
       ...formData, 
       sources: sourcesArray,
       region: regionObj,
       validity: validityObj,
+      existence: existenceArray,
+      roles: rolesArray,
       // Clear legacy fields
       year: undefined,
       dates: undefined
@@ -173,6 +216,33 @@ export const NodeEditorModal: React.FC = () => {
             value={formData.description || ''} 
             onChange={e => setFormData({...formData, description: e.target.value})}
           />
+
+          {/* Existence (for Orgs/Events) */}
+          {['organization', 'event'].includes(formData.type) && (
+            <BakeliteInput
+              label="Existence (YYYY-YYYY:Status (Context), one per line)"
+              multiline
+              rows={3}
+              value={existenceInput}
+              onChange={e => setExistenceInput(e.target.value)}
+              placeholder="e.g. 1918-1939:Active (Post-WW1)&#10;1940-:Defunct (WW2)"
+              className="font-mono text-xs"
+            />
+          )}
+
+          {/* Roles (for Persons) */}
+          {formData.type === 'person' && (
+            <BakeliteInput
+              label="Roles (Role in Org:YYYY-YYYY, one per line)"
+              multiline
+              rows={3}
+              value={rolesInput}
+              onChange={e => setRolesInput(e.target.value)}
+              placeholder="e.g. Leader in Liga Narodowa:1900-1920&#10;Editor of Goniec Warszawski:1905-1910"
+              className="font-mono text-xs"
+            />
+          )}
+
 
           {/* Sources */}
           <BakeliteInput

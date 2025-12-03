@@ -1,7 +1,7 @@
 
-
 import { GoogleGenAI } from "@google/genai";
-import { KnowledgeGraph } from "../types";
+import { KnowledgeGraph, TemporalFactType } from "../types"; // Import TemporalFactType
+import { getYearFromTemporalFact } from "./geminiService"; // Fix: Import from geminiService
 
 const API_KEY = process.env.API_KEY || '';
 const getAiClient = () => new GoogleGenAI({ apiKey: API_KEY });
@@ -47,28 +47,25 @@ function cleanAndParseJSON(text: string): any[] {
 function extractRecurrentPatterns(graph: KnowledgeGraph, startYear: number, endYear: number) {
     // 1. Filter Nodes active in this period (events happening, or people active)
     const relevantNodes = graph.nodes.filter(n => {
-        const y = n.data.year;
+        const nodeYear = getYearFromTemporalFact(n.data.validity); // Use new temporal type
         // Include nodes with specific years in range, or key entities (importance > 0.8) which are always relevant context
-        return (y !== undefined && y >= startYear && y <= endYear) || (n.data.importance && n.data.importance > 0.8);
+        return (nodeYear !== undefined && nodeYear >= startYear && nodeYear <= endYear) || (n.data.importance && n.data.importance > 0.8);
     }).map(n => `${n.data.label} (${n.data.type})`);
 
     // 2. Filter Edges active in this period
     const relevantEdges = graph.edges.filter(e => {
-        let edgeYear: number | undefined = e.data.validFrom;
-        
-        // Fallback to parsing 'dates' string if validFrom is missing
-        if (!edgeYear && e.data.dates) {
-             const match = e.data.dates.match(/\d{4}/);
-             if (match) edgeYear = parseInt(match[0]);
-        }
+        const edgeYear = getYearFromTemporalFact(e.data.temporal); // Use new temporal type
         
         return edgeYear !== undefined && edgeYear >= startYear && edgeYear <= endYear;
-    }).map(e => ({
-        source: e.data.source,
-        target: e.data.target,
-        label: e.data.label,
-        year: e.data.dates || e.data.validFrom
-    }));
+    }).map(e => { // Fix: Access edgeYear inside the map callback's scope
+        const edgeYear = getYearFromTemporalFact(e.data.temporal);
+        return {
+            source: e.data.source,
+            target: e.data.target,
+            label: e.data.label || e.data.relationType, // Use relationType if label is absent
+            year: edgeYear // Use extracted year
+        };
+    });
 
     // 3. Summarize
     return {
