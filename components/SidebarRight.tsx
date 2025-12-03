@@ -2,18 +2,18 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useStore } from '../store';
 import { chatWithAgent } from '../services/geminiService';
-import { Send, Cpu, ChevronDown, ChevronRight, MessageSquare, Scroll, PanelRightClose } from 'lucide-react';
+import { Send, Cpu, ChevronDown, ChevronRight, MessageSquare, Scroll, PanelRightClose, Search, GitCommit, ExternalLink } from 'lucide-react';
 import { DossierPanel } from './DossierPanel';
-import { BakeliteInput } from './BakeliteInput'; // NEW IMPORT
-import { BakeliteButton } from './BakeliteButton'; // NEW IMPORT
-import { ManualCreator } from './ManualCreator'; // NEW IMPORT
+import { BakeliteInput } from './BakeliteInput';
+import { BakeliteButton } from './BakeliteButton';
+import { ManualCreator } from './ManualCreator';
+import { ChatMessage } from '../types';
 
 export const SidebarRight: React.FC = () => {
   const { messages, addMessage, isThinking, setThinking, graph, isRightSidebarOpen, toggleRightSidebar, selectedNodeIds } = useStore();
   const [input, setInput] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // Logic to determine view mode
   const selectedNode = selectedNodeIds.length === 1 
       ? graph.nodes.find(n => n.data.id === selectedNodeIds[0])?.data 
       : null;
@@ -42,23 +42,19 @@ export const SidebarRight: React.FC = () => {
         role: 'assistant',
         content: response.text,
         reasoning: response.reasoning,
-        sources: response.sources, // Now passing Google Search sources!
+        sources: response.sources,
+        toolCalls: response.toolCalls,
         timestamp: Date.now()
       });
 
-      // --- NEW: Trigger Graph Builder ---
       if (response.patch) {
-          // Use the store action to open the modal
           useStore.getState().setPendingPatch(response.patch);
-          
-          // Optional: Add a toast to notify user
           useStore.getState().addToast({
              title: "Graph Updates Proposed",
              description: "Dmowski has drafted new entities based on research.",
              type: "success"
           });
       }
-      // ----------------------------------
 
     } catch (e) {
       addMessage({
@@ -77,13 +73,10 @@ export const SidebarRight: React.FC = () => {
       className={`bg-deco-panel border-l border-deco-gold/20 flex flex-col flex-shrink-0 transition-all duration-300 ease-in-out relative shadow-2xl z-20 ${isRightSidebarOpen ? 'w-[420px]' : 'w-0'}`}
     >
       <div className="w-[420px] h-full flex flex-col">
-        
-        {/* VIEW SWITCHER: If node selected, show Dossier. Else show Chat. */}
         {selectedNode ? (
             <DossierPanel node={selectedNode} />
         ) : (
             <>
-                {/* Chat Header */}
                 <div className="p-4 border-b border-deco-gold/20 flex justify-between items-center bg-deco-panel/90 shrink-0">
                   <h2 className="text-lg font-bold text-deco-paper flex items-center gap-2 font-spectral">
                     <MessageSquare size={18} className="text-deco-gold" /> Roman Dmowski (1925)
@@ -126,7 +119,7 @@ export const SidebarRight: React.FC = () => {
                       disabled={isThinking}
                       className="bg-deco-green hover:bg-deco-green/80 text-deco-paper p-2 rounded-sm disabled:opacity-50 border border-deco-green"
                       icon={<Send size={16} />}
-                      variant="primary" // Assuming primary for send button
+                      variant="primary"
                     >
                       <span className="sr-only">Send</span>
                     </BakeliteButton>
@@ -140,9 +133,11 @@ export const SidebarRight: React.FC = () => {
   );
 };
 
-const ChatMessageItem: React.FC<{ msg: any }> = ({ msg }) => {
+const ChatMessageItem: React.FC<{ msg: ChatMessage }> = ({ msg }) => {
   const [showReasoning, setShowReasoning] = useState(false);
+  const [showSources, setShowSources] = useState(false);
   const isUser = msg.role === 'user';
+  const hasTools = (msg.toolCalls && msg.toolCalls.length > 0) || (msg.sources && msg.sources.length > 0);
 
   return (
     <div className={`flex gap-3 ${isUser ? 'flex-row-reverse' : 'flex-row'}`}>
@@ -151,12 +146,52 @@ const ChatMessageItem: React.FC<{ msg: any }> = ({ msg }) => {
       </div>
       
       <div className={`max-w-[85%] space-y-2`}>
-        {/* Fix: Removed duplicate 'className' attribute */}
         <div className={`p-3 rounded-sm text-sm break-words whitespace-pre-wrap ${isUser ? 'bg-deco-green/10 text-deco-paper border border-deco-green/30' : 'bg-deco-panel text-deco-paper border border-deco-gold/20 font-serif'}`}>
           {msg.content}
         </div>
 
-        {/* ReAct Reasoning Dropdown */}
+        {!isUser && hasTools && (
+          <div className="border border-deco-gold/20 rounded-sm bg-deco-panel overflow-hidden">
+            <BakeliteButton 
+              onClick={() => setShowSources(!showSources)}
+              className="w-full justify-start !px-3 !py-1.5"
+              variant="secondary"
+              icon={showSources ? <ChevronDown size={12}/> : <ChevronRight size={12}/>}
+            >
+              {(msg.toolCalls && msg.toolCalls.length > 0) ? <GitCommit size={10} /> : <Search size={10} />}
+              {msg.toolCalls && msg.toolCalls.length > 0 ? 'Agent Tool Call' : 'Google Search Used'}
+            </BakeliteButton>
+            {showSources && (
+              <div className="p-3 text-xs text-zinc-500 font-mono bg-deco-navy/20 whitespace-pre-wrap border-t border-deco-gold/10 break-words">
+                {msg.toolCalls && msg.toolCalls.length > 0 && (
+                  <>
+                    <p className="font-bold text-deco-gold mb-1">Tools Used:</p>
+                    <ul className="list-disc list-inside space-y-0.5 mb-2">
+                      {msg.toolCalls.map((call, idx) => (
+                        <li key={idx} className="text-zinc-400">{call.name}</li>
+                      ))}
+                    </ul>
+                  </>
+                )}
+                {msg.sources && msg.sources.length > 0 && (
+                  <>
+                    <p className="font-bold text-deco-gold mb-1">Sources:</p>
+                    <ul className="list-disc list-inside space-y-0.5">
+                      {msg.sources.map((source, idx) => (
+                        <li key={idx}>
+                          <a href={source.uri} target="_blank" rel="noopener noreferrer" className="text-deco-green hover:underline flex items-center gap-1">
+                            {source.label || source.uri} <ExternalLink size={10} />
+                          </a>
+                        </li>
+                      ))}
+                    </ul>
+                  </>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
         {!isUser && msg.reasoning && (
            <div className="border border-deco-gold/20 rounded-sm bg-deco-panel overflow-hidden">
              <BakeliteButton 

@@ -116,7 +116,8 @@ export async function predictFutureConnections(
         model: 'gemini-3-pro-preview',
         contents: prompt,
         config: { 
-          thinkingConfig: { thinkingLevel: 'high' } as any,
+          // Fix: Replaced thinkingLevel with thinkingBudget as per coding guidelines
+          thinkingConfig: { thinkingBudget: 32768 },
           temperature: 0.7 
         }
       });

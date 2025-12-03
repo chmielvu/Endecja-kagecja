@@ -1,14 +1,14 @@
+
 import React, { useEffect, useRef } from 'react';
 import { useStore } from '../store';
 import { Play, Pause, Rewind } from 'lucide-react';
 import { TIMELINE_KEYFRAMES } from '../constants';
-import { BakeliteButton } from './BakeliteButton'; // NEW IMPORT
+import { BakeliteButton } from './BakeliteButton';
 
 export const Timeline: React.FC = () => {
   const { timelineYear, setFilterYear, isPlaying, setIsPlaying } = useStore();
   const intervalRef = useRef<number | null>(null);
   
-  // Continuous range 1880 - 1945 (Endecja Peak Era)
   const MIN_YEAR = 1880;
   const MAX_YEAR = 1945;
 
@@ -18,7 +18,6 @@ export const Timeline: React.FC = () => {
       
       intervalRef.current = window.setInterval(() => {
         setFilterYear((prev) => {
-           // If we just started, prev might be null
            const current = prev || MIN_YEAR;
            if (current >= MAX_YEAR) {
              setIsPlaying(false);
@@ -26,7 +25,7 @@ export const Timeline: React.FC = () => {
            }
            return current + 1;
         });
-      }, 800); // 800ms per year
+      }, 800);
     } else {
       if (intervalRef.current) {
          clearInterval(intervalRef.current);
@@ -40,7 +39,7 @@ export const Timeline: React.FC = () => {
 
   const handlePlayToggle = () => {
     if (timelineYear && timelineYear >= MAX_YEAR) {
-        setFilterYear(MIN_YEAR); // Restart if at end
+        setFilterYear(MIN_YEAR);
     }
     setIsPlaying(!isPlaying);
   };
@@ -53,7 +52,6 @@ export const Timeline: React.FC = () => {
   return (
     <div className="h-16 bg-deco-panel border-t border-deco-gold/20 flex items-center px-4 gap-4 shrink-0 relative z-20 shadow-[0_-5px_15px_rgba(0,0,0,0.5)]">
       
-      {/* Controls */}
       <div className="flex items-center gap-2">
          <BakeliteButton 
            onClick={handlePlayToggle}
@@ -78,12 +76,10 @@ export const Timeline: React.FC = () => {
       
       <div className="w-[1px] h-8 bg-zinc-800 mx-2"></div>
 
-      {/* Slider Area */}
       <div className="flex-1 flex flex-col justify-center relative">
         <div className="flex justify-between text-[10px] text-zinc-500 font-mono mb-2 uppercase relative z-10">
            <span>{MIN_YEAR}</span>
            
-           {/* Floating Year Indicator */}
            <div 
              className="absolute top-0 transform -translate-x-1/2 transition-all duration-300"
              style={{ 
@@ -101,7 +97,6 @@ export const Timeline: React.FC = () => {
            <span>{MAX_YEAR}</span>
         </div>
         
-        {/* Keyframe Markers (Absolute behind slider) */}
         <div className="absolute w-full h-8 top-0 pointer-events-none">
           {TIMELINE_KEYFRAMES.map(kf => (
             <div 
@@ -119,13 +114,10 @@ export const Timeline: React.FC = () => {
         </div>
 
         <div className="relative w-full h-2 flex items-center mt-1">
-          {/* Track Background */}
           <div className="absolute w-full h-1 bg-zinc-800 rounded-lg"></div>
           
-          {/* Progress Bar */}
           <div 
             className="absolute h-1 bg-deco-gold rounded-l-lg transition-all duration-100"
-            // Fix: Changed MIN_MIN_YEAR to MIN_YEAR
             style={{ width: timelineYear ? `${((timelineYear - MIN_YEAR) / (MAX_YEAR - MIN_YEAR)) * 100}%` : '100%' }}
           ></div>
 
@@ -134,7 +126,7 @@ export const Timeline: React.FC = () => {
             min={MIN_YEAR}
             max={MAX_YEAR}
             step={1}
-            value={timelineYear || MAX_YEAR} // Default to max when null for UI consistency
+            value={timelineYear || MAX_YEAR}
             onChange={(e) => {
                setIsPlaying(false);
                setFilterYear(parseInt(e.target.value));
@@ -148,7 +140,6 @@ export const Timeline: React.FC = () => {
           />
         </div>
         
-        {/* Ticks */}
         <div className="w-full flex justify-between mt-1 px-1 opacity-30">
           {Array.from({ length: 13 }).map((_, i) => (
              <div key={i} className={`w-[1px] ${i % 2 === 0 ? 'h-2 bg-zinc-500' : 'h-1 bg-zinc-700'}`}></div>

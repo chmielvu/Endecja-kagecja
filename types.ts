@@ -1,4 +1,6 @@
 
+import { FunctionDeclaration, GenerateContentParameters, Part, Type, FunctionCall as GenAI_FunctionCall } from "@google/genai"; // Import Type from @google/genai, and FunctionCall from @google/genai and rename it
+
 export type NodeType = 'person' | 'organization' | 'event' | 'concept' | 'publication' | 'document' | 'location'; // Added 'document', 'location'
 
 // New: Structured Source Citation
@@ -21,9 +23,29 @@ export interface RegionInfo {
 
 // ENHANCEMENT: Unified Temporal Representation for Dates/Validity
 export type TemporalFactType = 
-  | { type: 'instant'; timestamp: string } // e.g., "1918-11-11" or "1903"
-  | { type: 'interval'; start: string; end: string } // e.g., "1918-1939"
-  | { type: 'fuzzy'; approximate: string; uncertainty?: number }; // uncertainty 0.0 to 1.0 (e.g., "early 1900s", uncertainty 0.2)
+  | { type: 'instant'; timestamp: string; confidence?: number } // e.g., "1918-11-11" or "1903"
+  | { type: 'interval'; start: string; end: string; confidence?: number } // e.g., "1918-1939"
+  | { type: 'fuzzy'; approximate: string; uncertainty?: number; confidence?: number }; // uncertainty 0.0 to 1.0 (e.g., "early 1900s", uncertainty 0.2)
+
+// NEW: Explicit Existence interface
+export interface Existence { // For organizations, movements, etc.
+  start: string; // ISO date or YYYY
+  end?: string; // ISO date or YYYY
+  status: 'active' | 'latent' | 'defunct' | 'reformed' | 'formed' | 'dissolved' | 'established';
+  context?: string; // e.g., "Formed during the Great War"
+  confidence?: number; // Confidence for this specific existence fact
+}
+
+// NEW: Explicit Role interface
+export interface Role { // For persons
+  role: string; // e.g., 'Leader', 'Member', 'Editor'
+  organization?: string; // ID of organization node
+  event?: string; // ID of event node
+  start: string; // ISO date or YYYY
+  end?: string; // ISO date or YYYY
+  context?: string; // e.g., "Assumed leadership after Dmowski's death"
+  confidence?: number; // Confidence for this specific role fact
+}
 
 export interface NodeData {
   id: string;
@@ -36,20 +58,8 @@ export interface NodeData {
   validity?: TemporalFactType; 
 
   // ENHANCEMENT: Detailed existence and role history (from previous TemporalNode)
-  existence?: Array<{ // For organizations, movements, etc.
-    start: string; // ISO date or YYYY
-    end?: string; // ISO date or YYYY
-    status: 'active' | 'latent' | 'defunct' | 'reformed' | 'formed' | 'dissolved' | 'established';
-    context?: string; // e.g., "Formed during the Great War"
-  }>;
-  roles?: Array<{ // For persons
-    role: string; // e.g., 'Leader', 'Member', 'Editor'
-    organization?: string; // ID of organization node
-    event?: string; // ID of event node
-    start: string; // ISO date or YYYY
-    end?: string; // ISO date or YYYY
-    context?: string; // e.g., "Assumed leadership after Dmowski's death"
-  }>;
+  existence?: Existence[];
+  roles?: Role[];
 
   importance?: number; // PageRank / Betweenness can derive this, or manually set
   
@@ -76,6 +86,10 @@ export interface NodeData {
     balance: number; // Harmonic mean of Efficiency & Safety
     vulnerabilityScore: number; // Renamed from 'risk'
     identifiedIssues: string[]; // Renamed from 'vulnerabilities'
+  };
+  security?: { // LEGACY FIELD - to be removed, kept for GEXF export patch
+    risk: number;
+    vulnerabilities: string[];
   };
 
   // --- Research Metadata ---
@@ -175,6 +189,20 @@ export interface KnowledgeGraph {
   };
 }
 
+// NEW: GroundingChunk for better type safety with Google Search results
+export interface GroundingChunk {
+  web?: {
+    uri: string;
+    title: string;
+  };
+  maps?: {
+    uri: string;
+    title: string;
+    placeAnswerSources?: any; // Keep as any for now, as details can be complex
+  };
+}
+
+
 export interface GraphPatch {
   type: 'expansion' | 'deepening' | 'document_ingestion'; // Added 'document_ingestion'
   reasoning: string;
@@ -183,6 +211,9 @@ export interface GraphPatch {
   edges: Partial<EdgeData>[];
 }
 
+// Removed local FunctionCall interface
+export type FunctionCall = GenAI_FunctionCall; // Directly use and re-export FunctionCall from @google/genai
+
 export interface ChatMessage {
   id: string;
   role: 'user' | 'assistant' | 'system' | 'model';
@@ -190,7 +221,7 @@ export interface ChatMessage {
   reasoning?: string; // For ReAct display
   timestamp: number;
   sources?: SourceCitation[]; // ENHANCEMENT: Structured sources
-  toolCalls?: any[];
+  toolCalls?: FunctionCall[]; // Use the new FunctionCall type
   toolResponses?: any[];
 }
 
@@ -301,3 +332,15 @@ export interface GraphRAGIndex {
   hierarchies: Record<number, Record<string, number>>;
   summaries: CommunitySummary[];
 }
+
+// Re-export specific types from @google/genai as needed
+export { FunctionDeclaration, Type }; // Removed GenAI_FunctionCall as FunctionCall
+
+// Minimal Tool type to satisfy `tools: Tool[]`
+// Specific union of types allowed by the SDK
+export type Tool = 
+  | { functionDeclarations: FunctionDeclaration[]; }
+  | { googleSearch: {}; }
+  | { googleMaps: {}; }
+  | { codeExecution: {}; }
+;

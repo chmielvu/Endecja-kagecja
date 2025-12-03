@@ -5,9 +5,11 @@ interface BakeliteInputProps extends React.InputHTMLAttributes<HTMLInputElement 
   label?: string;
   multiline?: boolean;
   rows?: number;
+  // FIX: Added icon prop
+  icon?: React.ReactNode;
 }
 
-export const BakeliteInput: React.FC<BakeliteInputProps> = ({ label, className = "", multiline = false, rows = 3, ...props }) => {
+export const BakeliteInput: React.FC<BakeliteInputProps> = ({ label, className = "", multiline = false, rows = 3, icon, ...props }) => {
   const inputClasses = `
     w-full bg-deco-panel border border-deco-gold/50 rounded-sm px-3 py-2 text-sm 
     text-deco-paper focus:outline-none focus:border-deco-gold 
@@ -20,11 +22,19 @@ export const BakeliteInput: React.FC<BakeliteInputProps> = ({ label, className =
   return (
     <div className="space-y-1">
       {label && <label className="text-xs font-bold text-zinc-400 uppercase">{label}</label>}
-      <InputComponent
-        className={cn(inputClasses, className)} 
-        {...(multiline ? { rows } : {})}
-        {...props}
-      />
+      {/* FIX: Added a wrapper div to position the icon and adjusted input padding */}
+      <div className="relative flex items-center">
+        {icon && (
+          <div className="absolute left-3 text-zinc-500 pointer-events-none">
+            {icon}
+          </div>
+        )}
+        <InputComponent
+          className={cn(inputClasses, className, icon ? 'pl-9' : '')} // Add left-padding if icon is present
+          {...(multiline ? { rows } : {})}
+          {...props}
+        />
+      </div>
     </div>
   );
 };

@@ -1,70 +1,67 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useStore } from '../store';
-import { X, Save, Trash } from 'lucide-react'; // Removed BookOpen icon as it's not directly used, removed Shield
-import { NodeType, SourceCitation, RegionInfo, TemporalFactType } from '../types';
+import { X, Save, Trash, Plus, Minus, BookOpen, Clock, MapPin, GitCommit } from 'lucide-react';
+import { NodeType, SourceCitation, RegionInfo, TemporalFactType, Existence, Role, NodeData } from '../types';
 import { BakeliteInput } from './BakeliteInput';
 import { BakeliteButton } from './BakeliteButton';
 import { BakeliteCard } from './BakeliteCard';
+import { v4 as uuidv4 } from 'uuid';
 
-// Helper to parse temporal strings
-function parseTemporalInput(input: string): TemporalFactType | undefined {
-  if (!input) return undefined;
-  const intervalMatch = input.match(/^(\d{4})-(\d{4})$/);
-  if (intervalMatch) {
-    return { type: 'interval', start: intervalMatch[1], end: intervalMatch[2] };
-  }
-  const yearMatch = input.match(/^\d{4}$/);
-  if (yearMatch) {
-    return { type: 'instant', timestamp: input };
-  }
-  return { type: 'fuzzy', approximate: input };
+interface TemporalFactTypeEditorState {
+  type: 'instant' | 'interval' | 'fuzzy';
+  inputTimestamp: string;
+  inputStart: string;
+  inputEnd: string;
+  inputApproximate: string;
 }
 
-export const NodeEditorModal: React.FC = () => {
-  const { graph, editingNodeId, setEditingNode, updateNode, removeNode } = useStore();
-  const [formData, setFormData] = useState<any>({});
-  const [temporalInput, setTemporalInput] = useState<string>('');
-  const [regionInput, setRegionInput] = useState<string>('');
-  const [existenceInput, setExistenceInput] = useState<string>('');
-  const [rolesInput, setRolesInput] = useState<string>('');
+function parseTemporalInput(state: TemporalFactTypeEditorState): TemporalFactType | undefined {
+  if (state.type === 'instant') {
+    if (!state.inputTimestamp.trim()) return undefined;
+    return { type: 'instant', timestamp: state.inputTimestamp };
+  }
+  if (state.type === 'interval') {
+    if (!state.inputStart.trim() || !state.inputEnd.trim()) return undefined;
+    return { type: 'interval', start: state.inputStart, end: state.inputEnd };
+  }
+  if (state.type === 'fuzzy') {
+    if (!state.inputApproximate.trim()) return undefined;
+    return { type: 'fuzzy', approximate: state.inputApproximate };
+  }
+  return undefined;
+}
 
+const formatTemporalFact = (temporal?: TemporalFactType): TemporalFactTypeEditorState => {
+  if (!temporal) return { type: 'instant', inputTimestamp: '', inputStart: '', inputEnd: '', inputApproximate: '' };
+  switch (temporal.type) {
+    case 'instant': return { type: 'instant', inputTimestamp: temporal.timestamp, inputStart: '', inputEnd: '', inputApproximate: '' };
+    case 'interval': return { type: 'interval', inputTimestamp: '', inputStart: temporal.start, inputEnd: temporal.end, inputApproximate: '' };
+    case 'fuzzy': return { type: 'fuzzy', inputTimestamp: '', inputStart: '', inputEnd: '', inputApproximate: temporal.approximate };
+    default: return { type: 'instant', inputTimestamp: '', inputStart: '', inputEnd: '', inputApproximate: '' };
+  }
+};
+
+export const NodeEditorModal: React.FC = () => {
+  const { graph, editingNodeId, setEditingNode, updateNode, removeNode, addToast } = useStore();
+  const [formData, setFormData] = useState<Partial<NodeData>>({});
+  
+  const [temporalState, setTemporalState] = useState<TemporalFactTypeEditorState>(formatTemporalFact());
+  const [regionLabel, setRegionLabel] = useState<string>('');
+  const [sources, setSources] = useState<Array<SourceCitation & { _tempId: string }>>([]); 
+  const [existence, setExistence] = useState<Array<Existence & { _tempId: string }>>([]); 
+  const [roles, setRoles] = useState<Array<Role & { _tempId: string }>>([]); 
 
   useEffect(() => {
     if (editingNodeId) {
       const node = graph.nodes.find(n => n.data.id === editingNodeId)?.data;
       if (node) {
-        setFormData({
-          ...node,
-          // Convert SourceCitation[] to string for textarea
-          sources: node.sources ? node.sources.map(s => s.uri || s.label).join('\n') : '',
-        });
-        // Convert TemporalFactType to string for input
-        if (node.validity) {
-          if (node.validity.type === 'instant') setTemporalInput(node.validity.timestamp);
-          if (node.validity.type === 'interval') setTemporalInput(`${node.validity.start}-${node.validity.end}`);
-          if (node.validity.type === 'fuzzy') setTemporalInput(node.validity.approximate);
-        } else {
-          setTemporalInput('');
-        }
-        // Convert RegionInfo to string for input
-        if (node.region) {
-          setRegionInput(node.region.label || node.region.id);
-        } else {
-          setRegionInput('');
-        }
-        // Convert existence array to string for textarea
-        if (node.existence && node.existence.length > 0) {
-          setExistenceInput(node.existence.map(e => `${e.start}-${e.end || ''}:${e.status}${e.context ? ` (${e.context})` : ''}`).join('\n'));
-        } else {
-          setExistenceInput('');
-        }
-        // Convert roles array to string for textarea
-        if (node.roles && node.roles.length > 0) {
-          setRolesInput(node.roles.map(r => `${r.role}${r.organization ? ` in ${r.organization}` : ''}:${r.start}-${r.end || ''}`).join('\n'));
-        } else {
-          setRolesInput('');
-        }
+        setFormData({ ...node });
+        setTemporalState(formatTemporalFact(node.validity));
+        setRegionLabel(node.region?.label || '');
+        setSources((node.sources || []).map(s => ({ ...s, _tempId: uuidv4() })));
+        setExistence((node.existence || []).map(e => ({ ...e, _tempId: uuidv4() })));
+        setRoles((node.roles || []).map(r => ({ ...r, _tempId: uuidv4() })));
       }
     }
   }, [editingNodeId, graph]);
@@ -72,97 +69,75 @@ export const NodeEditorModal: React.FC = () => {
   if (!editingNodeId) return null;
 
   const handleSave = () => {
-    // Convert string back to SourceCitation[]
-    const sourcesArray: SourceCitation[] = formData.sources ? 
-      formData.sources.split('\n').map((uri: string) => ({ uri: uri.trim(), label: uri.trim() })) : [];
+    if (!formData.label || !formData.type) {
+      addToast({ title: 'Validation Error', description: 'Label and Type are required.', type: 'error' });
+      return;
+    }
 
-    // Convert string back to RegionInfo
-    const regionObj: RegionInfo | undefined = regionInput ? { 
-      id: regionInput.toLowerCase().replace(/\s/g, '_'), 
-      label: regionInput,
-      type: 'historical_region' // Default type
+    const validityObj = parseTemporalInput(temporalState);
+    const regionObj: RegionInfo | undefined = regionLabel ? { 
+      id: regionLabel.toLowerCase().replace(/\s/g, '_'), 
+      label: regionLabel,
+      type: 'historical_region'
     } : undefined;
 
-    // Convert string back to TemporalFactType
-    const validityObj: TemporalFactType | undefined = parseTemporalInput(temporalInput);
-
-    // Convert existence string back to array
-    const existenceArray = existenceInput ? existenceInput.split('\n').map(line => {
-      // Fix: Corrected the access to parts[0] before calling split
-      const parts = line.split(':');
-      const dates = parts[0]?.split('-');
-      const statusContext = parts[1]?.trim().match(/^(\w+)(?:\s*\((.*)\))?$/);
-      return {
-        start: dates?.[0]?.trim(),
-        end: dates?.[1]?.trim() || undefined,
-        status: (statusContext?.[1]?.trim() || 'active') as any, // Cast to any because it's a union type
-        context: statusContext?.[2]?.trim() || undefined
-      };
-    }).filter(e => e.start) : undefined;
-
-    // Convert roles string back to array
-    const rolesArray = rolesInput ? rolesInput.split('\n').map(line => {
-      const roleOrg = line.split(':')[0]?.trim();
-      const dates = line.split(':')[1]?.split('-');
-      const roleMatch = roleOrg?.match(/^(.+?)(?:\s*in\s*(.+))?$/);
-      return {
-        role: roleMatch?.[1]?.trim(),
-        organization: roleMatch?.[2]?.trim() || undefined,
-        start: dates?.[0]?.trim(),
-        end: dates?.[1]?.trim() || undefined,
-      };
-    }).filter(r => r.role) : undefined;
-
+    const validatedSources = sources.filter(s => s.uri?.trim() || s.label?.trim());
+    const validatedExistence = existence.filter(e => e.start?.trim() && e.status?.trim());
+    const validatedRoles = roles.filter(r => r.role?.trim() && r.start?.trim());
 
     updateNode(editingNodeId, { 
       ...formData, 
-      sources: sourcesArray,
+      sources: validatedSources,
       region: regionObj,
       validity: validityObj,
-      existence: existenceArray,
-      roles: rolesArray,
-      // Clear legacy fields
+      existence: validatedExistence,
+      roles: validatedRoles,
       year: undefined,
       dates: undefined
     });
     setEditingNode(null);
+    addToast({ title: 'Node Updated', description: `Changes saved for '${formData.label}'.`, type: 'success' });
   };
 
   const handleDelete = () => {
-    if (confirm("Are you sure?")) {
+    if (confirm("Are you sure you want to delete this node?")) {
       removeNode(editingNodeId);
       setEditingNode(null);
+      addToast({ title: 'Node Deleted', description: `Removed '${formData.label}'.`, type: 'info' });
     }
   };
+
+  // List Handlers
+  const addSource = () => setSources(prev => [...prev, { uri: '', label: '', type: 'website', _tempId: uuidv4() }]);
+  const updateSource = (id: string, field: keyof SourceCitation, value: string) => setSources(prev => prev.map(s => s._tempId === id ? { ...s, [field]: value } : s));
+  const removeSource = (id: string) => setSources(prev => prev.filter(s => s._tempId !== id));
+
+  const addExistenceItem = () => setExistence(prev => [...prev, { start: '', end: '', status: 'active', context: '', _tempId: uuidv4() }]);
+  const updateExistence = (id: string, field: keyof Existence, value: any) => setExistence(prev => prev.map(e => e._tempId === id ? { ...e, [field]: value } : e));
+  const removeExistence = (id: string) => setExistence(prev => prev.filter(e => e._tempId !== id));
+
+  const addRole = () => setRoles(prev => [...prev, { role: '', organization: '', start: '', end: '', context: '', _tempId: uuidv4() }]);
+  const updateRole = (id: string, field: keyof Role, value: any) => setRoles(prev => prev.map(r => r._tempId === id ? { ...r, [field]: value } : r));
+  const removeRole = (id: string) => setRoles(prev => prev.filter(r => r._tempId !== id));
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
       <BakeliteCard 
-        title={`Edit Node: ${formData.id}`} 
-        icon={<Edit2Icon />} 
+        title={`Edit Node: ${formData.label || editingNodeId}`} 
+        icon={<GitCommit size={16} />} 
         className="w-full max-w-lg max-h-[90vh] flex flex-col"
         headerClassName="!bg-deco-panel !rounded-t-xl"
         chamfered={false}
       >
         <button onClick={() => setEditingNode(null)} className="absolute top-4 right-4 text-zinc-400 hover:text-deco-paper"><X size={18}/></button>
         
-        <div className="p-6 space-y-4 overflow-y-auto bg-deco-navy/50">
-          {/* Top Row: Label */}
-          <BakeliteInput
-            label="Label"
-            value={formData.label || ''} 
-            onChange={e => setFormData({...formData, label: e.target.value})}
-          />
+        <div className="p-6 space-y-6 overflow-y-auto bg-deco-navy/50 flex-1">
+          <BakeliteInput label="Label" value={formData.label || ''} onChange={e => setFormData({...formData, label: e.target.value})} placeholder="e.g. Roman Dmowski" />
 
-          {/* Grid: Type & Region */}
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1">
                <label className="text-xs font-bold text-zinc-400 uppercase">Type</label>
-               <select 
-                 value={formData.type || 'person'} 
-                 onChange={e => setFormData({...formData, type: e.target.value as NodeType})}
-                 className="w-full bg-deco-panel border border-deco-gold/30 rounded-sm px-3 py-2 text-sm text-deco-paper focus:border-deco-gold outline-none"
-               >
+               <select value={formData.type || 'person'} onChange={e => setFormData({...formData, type: e.target.value as NodeType})} className="w-full bg-deco-panel border border-deco-gold/30 rounded-sm px-3 py-2 text-sm text-deco-paper focus:border-deco-gold outline-none">
                  <option value="person">Person</option>
                  <option value="organization">Organization</option>
                  <option value="event">Event</option>
@@ -172,105 +147,97 @@ export const NodeEditorModal: React.FC = () => {
                  <option value="location">Location</option>
                </select>
             </div>
-            <BakeliteInput
-               label="Region"
-               value={regionInput} 
-               onChange={e => setRegionInput(e.target.value)}
-               placeholder="e.g. Wielkopolska"
-            />
+            <BakeliteInput label="Region Label" icon={<MapPin size={14}/>} value={regionLabel} onChange={e => setRegionLabel(e.target.value)} placeholder="Region" />
           </div>
 
-          {/* Grid: Certainty & Validity */}
           <div className="grid grid-cols-2 gap-4">
              <div className="space-y-1">
-               <label className="text-xs font-bold text-zinc-400 uppercase flex items-center gap-1">
-                 Certainty
-               </label>
-               <select 
-                 value={formData.certainty || 'confirmed'} 
-                 onChange={e => setFormData({...formData, certainty: e.target.value})}
-                 className={`w-full bg-deco-panel border border-deco-gold/30 rounded-sm px-3 py-2 text-sm focus:border-deco-gold outline-none font-medium
-                   ${formData.certainty === 'disputed' ? 'text-amber-500' : 
-                     formData.certainty === 'alleged' ? 'text-red-400' : 
-                     formData.certainty === 'hypothesized' ? 'text-blue-400' : 'text-emerald-400'}`}
-               >
+               <label className="text-xs font-bold text-zinc-400 uppercase">Certainty</label>
+               <select value={formData.certainty || 'confirmed'} onChange={e => setFormData({...formData, certainty: e.target.value as any})} className="w-full bg-deco-panel border border-deco-gold/30 rounded-sm px-3 py-2 text-sm text-deco-paper focus:border-deco-gold outline-none">
                  <option value="confirmed">Confirmed</option>
                  <option value="disputed">Disputed</option>
                  <option value="alleged">Alleged</option>
                  <option value="hypothesized">Hypothesized</option>
                </select>
             </div>
-            <BakeliteInput
-               label="Validity (YYYY or YYYY-YYYY)"
-               value={temporalInput} 
-               onChange={e => setTemporalInput(e.target.value)}
-               placeholder="e.g. 1918-1939 or 1934"
-               className="font-mono"
-            />
+            <div className="space-y-1">
+              <label className="text-xs font-bold text-zinc-400 uppercase flex items-center gap-1"><Clock size={14}/> Validity</label>
+              <div className="flex flex-col gap-1">
+                <select value={temporalState.type} onChange={e => setTemporalState({ ...formatTemporalFact(), type: e.target.value as any })} className="bg-deco-panel border border-deco-gold/30 rounded-sm px-2 py-1 text-xs text-deco-paper">
+                  <option value="instant">Instant</option>
+                  <option value="interval">Interval</option>
+                  <option value="fuzzy">Fuzzy</option>
+                </select>
+                {temporalState.type === 'instant' && <BakeliteInput value={temporalState.inputTimestamp} onChange={e => setTemporalState(prev => ({ ...prev, inputTimestamp: e.target.value }))} placeholder="YYYY-MM-DD" className="text-xs font-mono"/>}
+                {temporalState.type === 'interval' && (
+                  <div className="flex gap-1">
+                    <BakeliteInput value={temporalState.inputStart} onChange={e => setTemporalState(prev => ({ ...prev, inputStart: e.target.value }))} placeholder="Start" className="text-xs font-mono"/>
+                    <BakeliteInput value={temporalState.inputEnd} onChange={e => setTemporalState(prev => ({ ...prev, inputEnd: e.target.value }))} placeholder="End" className="text-xs font-mono"/>
+                  </div>
+                )}
+                {temporalState.type === 'fuzzy' && <BakeliteInput value={temporalState.inputApproximate} onChange={e => setTemporalState(prev => ({ ...prev, inputApproximate: e.target.value }))} placeholder="e.g. Early 20th C." className="text-xs"/>}
+              </div>
+            </div>
           </div>
 
-          {/* Description */}
-          <BakeliteInput
-            label="Description"
-            multiline
-            rows={5}
-            value={formData.description || ''} 
-            onChange={e => setFormData({...formData, description: e.target.value})}
-          />
+          <BakeliteInput label="Description" multiline rows={5} value={formData.description || ''} onChange={e => setFormData({...formData, description: e.target.value})} placeholder="Context..." />
 
-          {/* Existence (for Orgs/Events) */}
-          {['organization', 'event'].includes(formData.type) && (
-            <BakeliteInput
-              label="Existence (YYYY-YYYY:Status (Context), one per line)"
-              multiline
-              rows={3}
-              value={existenceInput}
-              onChange={e => setExistenceInput(e.target.value)}
-              placeholder="e.g. 1918-1939:Active (Post-WW1)&#10;1940-:Defunct (WW2)"
-              className="font-mono text-xs"
-            />
-          )}
+          {/* Dynamic Forms for Existence/Roles/Sources */}
+          <div className="space-y-4">
+            {/* Existence History (Orgs) */}
+            {['organization', 'event'].includes(formData.type as string) && (
+              <BakeliteCard title="Existence Timeline" icon={<Clock size={14}/>} className="!bg-deco-navy/30 !shadow-none" headerClassName="!p-2" bodyClassName="!p-2">
+                 {existence.map(e => (
+                   <div key={e._tempId} className="flex gap-1 mb-2">
+                      <BakeliteInput value={e.start} onChange={evt => updateExistence(e._tempId, 'start', evt.target.value)} placeholder="Start" className="w-16 text-xs !p-1"/>
+                      <BakeliteInput value={e.end || ''} onChange={evt => updateExistence(e._tempId, 'end', evt.target.value)} placeholder="End" className="w-16 text-xs !p-1"/>
+                      <select value={e.status} onChange={evt => updateExistence(e._tempId, 'status', evt.target.value)} className="bg-deco-panel border border-deco-gold/30 text-[10px] rounded px-1 w-20">
+                         <option value="active">Active</option>
+                         <option value="formed">Formed</option>
+                         <option value="defunct">Defunct</option>
+                      </select>
+                      <BakeliteButton onClick={() => removeExistence(e._tempId)} variant="danger" className="!p-1"><Minus size={10}/></BakeliteButton>
+                   </div>
+                 ))}
+                 <BakeliteButton onClick={addExistenceItem} variant="secondary" className="w-full text-xs !py-1"><Plus size={10}/> Add Period</BakeliteButton>
+              </BakeliteCard>
+            )}
 
-          {/* Roles (for Persons) */}
-          {formData.type === 'person' && (
-            <BakeliteInput
-              label="Roles (Role in Org:YYYY-YYYY, one per line)"
-              multiline
-              rows={3}
-              value={rolesInput}
-              onChange={e => setRolesInput(e.target.value)}
-              placeholder="e.g. Leader in Liga Narodowa:1900-1920&#10;Editor of Goniec Warszawski:1905-1910"
-              className="font-mono text-xs"
-            />
-          )}
+            {/* Roles (Person) */}
+            {formData.type === 'person' && (
+              <BakeliteCard title="Roles" icon={<BookOpen size={14}/>} className="!bg-deco-navy/30 !shadow-none" headerClassName="!p-2" bodyClassName="!p-2">
+                 {roles.map(r => (
+                   <div key={r._tempId} className="flex gap-1 mb-2">
+                      <BakeliteInput value={r.role} onChange={evt => updateRole(r._tempId, 'role', evt.target.value)} placeholder="Role" className="flex-1 text-xs !p-1"/>
+                      <BakeliteInput value={r.organization || ''} onChange={evt => updateRole(r._tempId, 'organization', evt.target.value)} placeholder="Org ID" className="w-20 text-xs !p-1"/>
+                      <BakeliteButton onClick={() => removeRole(r._tempId)} variant="danger" className="!p-1"><Minus size={10}/></BakeliteButton>
+                   </div>
+                 ))}
+                 <BakeliteButton onClick={addRole} variant="secondary" className="w-full text-xs !py-1"><Plus size={10}/> Add Role</BakeliteButton>
+              </BakeliteCard>
+            )}
 
-
-          {/* Sources */}
-          <BakeliteInput
-             label="Sources (One URL/Title per line)"
-             multiline
-             rows={5}
-             value={formData.sources || ''} 
-             onChange={e => setFormData({...formData, sources: e.target.value})}
-             className="font-mono text-xs"
-             placeholder="https://example.com/source.html&#10;Author, Title (Year)..."
-          />
-
+            {/* Sources */}
+            <BakeliteCard title="Sources" icon={<BookOpen size={14}/>} className="!bg-deco-navy/30 !shadow-none" headerClassName="!p-2" bodyClassName="!p-2">
+                {sources.map(s => (
+                  <div key={s._tempId} className="flex flex-col gap-1 mb-2 border-b border-deco-gold/10 pb-2">
+                     <div className="flex gap-1">
+                       <BakeliteInput value={s.label || ''} onChange={evt => updateSource(s._tempId, 'label', evt.target.value)} placeholder="Title/Label" className="flex-1 text-xs !p-1"/>
+                       <BakeliteButton onClick={() => removeSource(s._tempId)} variant="danger" className="!p-1"><Minus size={10}/></BakeliteButton>
+                     </div>
+                     <BakeliteInput value={s.uri} onChange={evt => updateSource(s._tempId, 'uri', evt.target.value)} placeholder="URI/URL" className="w-full text-xs !p-1 font-mono"/>
+                  </div>
+                ))}
+                <BakeliteButton onClick={addSource} variant="secondary" className="w-full text-xs !py-1"><Plus size={10}/> Add Source</BakeliteButton>
+            </BakeliteCard>
+          </div>
         </div>
 
         <div className="p-4 border-t border-deco-gold/20 bg-deco-panel rounded-b-xl flex justify-between shrink-0">
-          <BakeliteButton onClick={handleDelete} icon={<Trash size={14} />} variant="danger">
-            Delete
-          </BakeliteButton>
-          <BakeliteButton onClick={handleSave} icon={<Save size={14} />} variant="primary">
-            Save Changes
-          </BakeliteButton>
+          <BakeliteButton onClick={handleDelete} icon={<Trash size={14} />} variant="danger">Delete</BakeliteButton>
+          <BakeliteButton onClick={handleSave} icon={<Save size={14} />} variant="primary">Save Changes</BakeliteButton>
         </div>
       </BakeliteCard>
     </div>
   );
 };
-
-const Edit2Icon = () => (
-  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"></path></svg>
-);

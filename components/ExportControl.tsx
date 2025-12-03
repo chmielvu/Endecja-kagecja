@@ -15,9 +15,9 @@ export const ExportControl: React.FC = () => {
     const a = document.createElement('a');
     a.href = url;
     a.download = filename;
-    document.body.appendChild(a); // Append to body to ensure it's clickable
+    document.body.appendChild(a);
     a.click();
-    document.body.removeChild(a); // Clean up
+    document.body.removeChild(a);
     URL.revokeObjectURL(url);
   };
 
@@ -27,7 +27,6 @@ export const ExportControl: React.FC = () => {
   };
 
   const handleExportGEXF = () => {
-    // Define attributes for nodes
     const nodeAttributes = [
       { id: "type", title: "Type", type: "string" },
       { id: "description", title: "Description", type: "string" },
@@ -41,11 +40,10 @@ export const ExportControl: React.FC = () => {
       { id: "betweenness", title: "Betweenness Centrality", type: "double" },
       { id: "closeness", title: "Closeness Centrality", type: "double" },
       { id: "clustering", title: "Clustering Coefficient", type: "double" },
-      { id: "security_risk", title: "Security Risk", type: "double" },
+      { id: "vulnerabilityScore", title: "Vulnerability Score", type: "double" },
       { id: "sources_uri", title: "Sources URI", type: "string" },
     ];
 
-    // Define attributes for edges
     const edgeAttributes = [
       { id: "relationType", title: "Relation Type", type: "string" },
       { id: "temporal", title: "Temporal", type: "string" },
@@ -87,7 +85,7 @@ ${edgeAttributes.map(attr => `      <attribute id="${attr.id}" title="${attr.tit
           <attvalue for="betweenness" value="${n.data.betweenness || 0}"/>
           <attvalue for="closeness" value="${n.data.closeness || 0}"/>
           <attvalue for="clustering" value="${n.data.clustering || 0}"/>
-          <attvalue for="security_risk" value="${n.data.security?.risk || 0}"/>
+          <attvalue for="vulnerabilityScore" value="${n.data.networkHealth?.vulnerabilityScore || 0}"/>
           <attvalue for="sources_uri" value="${sourcesUri.replace(/&/g, '&amp;').replace(/"/g, '&quot;')}"/>
         </attvalues>
       </node>`;
@@ -120,11 +118,10 @@ ${edgeAttributes.map(attr => `      <attribute id="${attr.id}" title="${attr.tit
   };
 
   const handleExportCSV = () => {
-    // CSV for nodes, focusing on key attributes for statistical analysis
     const headers = [
       "ID", "Label", "Type", "Description", "Validity", "Region", "Importance", 
       "Certainty", "Confidence Score", "PageRank", "Community", "Degree Centrality", 
-      "Betweenness Centrality", "Closeness Centrality", "Clustering Coefficient", "Security Risk", "Sources URI"
+      "Betweenness Centrality", "Closeness Centrality", "Clustering Coefficient", "Vulnerability Score", "Sources URI"
     ];
     
     const rows = graph.nodes.map(n => {
@@ -139,7 +136,7 @@ ${edgeAttributes.map(attr => `      <attribute id="${attr.id}" title="${attr.tit
         data.id,
         data.label,
         data.type,
-        `"${(data.description || '').replace(/"/g, '""')}"`, // Escape quotes in description
+        `"${(data.description || '').replace(/"/g, '""')}"`,
         validityStr,
         data.region?.label || '',
         data.importance || 0,
@@ -151,7 +148,7 @@ ${edgeAttributes.map(attr => `      <attribute id="${attr.id}" title="${attr.tit
         data.betweenness || 0,
         data.closeness || 0,
         data.clustering || 0,
-        data.security?.risk || 0,
+        data.networkHealth?.vulnerabilityScore || 0,
         `"${sourcesUri.replace(/"/g, '""')}"`,
       ].map(value => String(value)).join(',');
     });
