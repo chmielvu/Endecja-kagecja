@@ -1,4 +1,5 @@
 
+
 import Graph from 'graphology';
 import louvain from 'graphology-communities-louvain';
 import { KnowledgeGraph, GraphRAGIndex, CommunitySummary, NodeData } from '../types';
@@ -63,7 +64,8 @@ export async function buildGraphRAGIndex(graph: KnowledgeGraph): Promise<GraphRA
        const years = commNodes.map(n => n.year).filter(y => y !== undefined) as number[];
        const timespan = years.length > 0 ? `${Math.min(...years)}-${Math.max(...years)}` : 'Unknown';
        
-       const regions = commNodes.map(n => n.region).filter(r => r && r !== 'Unknown');
+       // Fix: Access region.label for filtering and counting
+       const regions = commNodes.map(n => n.region?.label).filter(r => r !== undefined && r !== 'Unknown');
        const regionCounts: Record<string, number> = {};
        regions.forEach(r => regionCounts[r!] = (regionCounts[r!] || 0) + 1);
        const dominantRegion = Object.entries(regionCounts).sort((a, b) => b[1] - a[1])[0]?.[0] || 'Mixed';

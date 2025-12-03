@@ -1,3 +1,5 @@
+
+
 import React from 'react';
 import { useStore } from '../store';
 import { X, Activity, Globe, Share2, Layers } from 'lucide-react';
@@ -9,14 +11,31 @@ export const StatsPanel: React.FC = () => {
 
   const nodeCount = graph.nodes.length;
   const edgeCount = graph.edges.length;
-  const density = (2 * edgeCount) / (nodeCount * (nodeCount - 1));
-  const avgDegree = (2 * edgeCount / nodeCount).toFixed(2);
+  
+  // Use new meta structure, fallback to old or calculated
+  const globalMetrics = graph.meta?.globalMetrics;
+  const communityStructure = graph.meta?.communityStructure;
+
+  const density = globalMetrics?.density !== undefined ? globalMetrics.density : 
+                  (nodeCount > 1 ? (2 * edgeCount) / (nodeCount * (nodeCount - 1)) : 0);
+  const transitivity = globalMetrics?.transitivity !== undefined ? globalMetrics.transitivity : 0;
+  const numComponents = globalMetrics?.number_connected_components !== undefined ? globalMetrics.number_connected_components : 0;
+  
+  const modularity = communityStructure?.modularity !== undefined ? communityStructure.modularity : 
+                     (graph.meta?.modularity || 0); // Fallback to legacy
+  const numCommunities = communityStructure?.num_communities !== undefined ? communityStructure.num_communities : 0;
+  
+  const avgDegree = (nodeCount > 0 ? (2 * edgeCount / nodeCount) : 0).toFixed(2);
   const globalBalance = ((graph.meta?.globalBalance || 0) * 100).toFixed(1);
 
-  // Top Nodes by PageRank
+  // Top Nodes by PageRank from either new meta or existing node data
   const topNodes = [...graph.nodes]
     .sort((a, b) => (b.data.pagerank || 0) - (a.data.pagerank || 0))
     .slice(0, 5);
+  
+  // Top Influencers from Python analysis
+  const keyInfluencers = graph.meta?.keyInfluencers || [];
+
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
@@ -31,7 +50,7 @@ export const StatsPanel: React.FC = () => {
         <div className="p-6 grid grid-cols-2 md:grid-cols-4 gap-4">
            <StatCard icon={<Globe size={16} />} label="Nodes" value={nodeCount} sub="Total Entities" />
            <StatCard icon={<Share2 size={16} />} label="Edges" value={edgeCount} sub="Connections" />
-           <StatCard icon={<Layers size={16} />} label="Modularity" value={(graph.meta?.modularity || 0).toFixed(3)} sub="Community Structure" />
+           <StatCard icon={<Layers size={16} />} label="Modularity" value={modularity.toFixed(3)} sub={`Factions: ${numCommunities}`} />
            <StatCard icon={<Activity size={16} />} label="Balance" value={`${globalBalance}%`} sub="Triadic Consistency" color="text-[#355e3b]" />
         </div>
 
@@ -43,10 +62,13 @@ export const StatsPanel: React.FC = () => {
                  <span>Density</span> <span className="font-mono text-zinc-400">{density.toFixed(4)}</span>
                </div>
                <div className="flex justify-between border-b border-zinc-800 pb-1">
+                 <span>Transitivity</span> <span className="font-mono text-zinc-400">{transitivity.toFixed(4)}</span>
+               </div>
+               <div className="flex justify-between border-b border-zinc-800 pb-1">
                  <span>Avg Degree</span> <span className="font-mono text-zinc-400">{avgDegree}</span>
                </div>
                <div className="flex justify-between border-b border-zinc-800 pb-1">
-                 <span>Components</span> <span className="font-mono text-zinc-400">1 (Main)</span>
+                 <span>Components</span> <span className="font-mono text-zinc-400">{numComponents}</span>
                </div>
              </div>
            </div>
@@ -54,7 +76,15 @@ export const StatsPanel: React.FC = () => {
            <div>
              <h4 className="text-xs font-bold text-[#b45309] uppercase mb-4">Key Influencers (PageRank)</h4>
              <div className="space-y-2">
-               {topNodes.map((n, i) => (
+               {keyInfluencers.length > 0 ? keyInfluencers.map((n, i) => (
+                 <div key={n.id} className="flex items-center gap-2">
+                   <span className="text-xs font-mono text-zinc-600 w-4">{i+1}.</span>
+                   <div className="flex-1 h-2 bg-zinc-800 rounded-full overflow-hidden">
+                     <div className="h-full bg-[#355e3b]" style={{ width: `${(n.score || 0) * 1000}%` }}></div>
+                   </div>
+                   <span className="text-xs text-white truncate w-24">{n.label}</span>
+                 </div>
+               )) : topNodes.map((n, i) => ( // Fallback to client-side pagerank if no Python analysis
                  <div key={n.data.id} className="flex items-center gap-2">
                    <span className="text-xs font-mono text-zinc-600 w-4">{i+1}.</span>
                    <div className="flex-1 h-2 bg-zinc-800 rounded-full overflow-hidden">

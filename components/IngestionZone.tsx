@@ -1,4 +1,5 @@
 
+
 import React, { useCallback, useState } from 'react';
 import { useStore } from '../store';
 import { analyzeDocument } from '../services/geminiService';
@@ -39,11 +40,11 @@ export const IngestionZone: React.FC = () => {
       const result = await analyzeDocument(file, graph);
       setPendingPatch({
         type: 'expansion',
-        reasoning: result.thoughtSignature,
-        nodes: result.newNodes,
-        edges: result.newEdges
+        reasoning: result.reasoning, // Fix: Access correct property
+        nodes: result.nodes, // Fix: Access correct property
+        edges: result.edges // Fix: Access correct property
       });
-      updateResearchTask(taskId, { status: 'complete', reasoning: result.thoughtSignature });
+      updateResearchTask(taskId, { status: 'complete', reasoning: result.reasoning });
       addToast({ title: 'Document Decoded', description: 'Entities extracted from evidence.', type: 'success' });
     } catch (e) {
       updateResearchTask(taskId, { status: 'failed', reasoning: 'Ingestion failed.' });

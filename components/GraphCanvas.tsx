@@ -1,15 +1,25 @@
 
+
 import React, { useEffect, useRef, useState } from 'react';
 import cytoscape from 'cytoscape';
 import cola from 'cytoscape-cola';
 import { useStore } from '../store';
 import { THEME } from '../constants';
-import { NodeData } from '../types';
+import { NodeData, TemporalFactType } from '../types';
 import { generateNodeDeepening } from '../services/geminiService';
+import { getRankInsigniaSVG } from '../services/styleUtils';
 import { BookOpenCheck, X, Link, Shield } from 'lucide-react';
 
 // Register the Cola extension
 cytoscape.use(cola);
+
+// Helper to extract a single year from TemporalFactType for filtering
+function getYearFromTemporalFact(temporal?: TemporalFactType): number | undefined {
+  if (!temporal) return undefined;
+  if (temporal.type === 'instant') return parseInt(temporal.timestamp);
+  if (temporal.type === 'interval') return parseInt(temporal.start);
+  return undefined;
+}
 
 export const GraphCanvas: React.FC = () => {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -56,13 +66,8 @@ export const GraphCanvas: React.FC = () => {
 
     try {
       const result = await generateNodeDeepening(node, graph);
-      setPendingPatch({
-        type: 'deepening',
-        reasoning: result.thoughtSignature,
-        nodes: [{ id: node.id, ...result.updatedProperties }], 
-        edges: result.newEdges
-      });
-      updateResearchTask(taskId, { status: 'complete', reasoning: result.thoughtSignature });
+      setPendingPatch(result); // Pass the full GraphPatch
+      updateResearchTask(taskId, { status: 'complete', reasoning: result.reasoning });
     } catch (e) {
       addToast({ title: 'Błąd Archiwum', description: 'Intelligence gathering failed.', type: 'error' });
       updateResearchTask(taskId, { status: 'failed', reasoning: 'Query failed.' });
@@ -75,6 +80,12 @@ export const GraphCanvas: React.FC = () => {
   useEffect(() => {
     if (!containerRef.current) return;
 
+    // Destroy existing Cytoscape instance if it exists to prevent memory leaks on re-renders
+    if (cyRef.current) {
+      cyRef.current.destroy();
+      cyRef.current = null;
+    }
+
     cyRef.current = cytoscape({
       container: containerRef.current,
       selectionType: 'additive',
@@ -83,7 +94,7 @@ export const GraphCanvas: React.FC = () => {
         {
           selector: 'node',
           style: {
-            'shape': 'round-rectangle',
+            'shape': 'cut-rectangle',
             'label': 'data(label)',
             'color': THEME.colors.parchment,
             'font-family': 'Spectral, serif',
@@ -93,18 +104,20 @@ export const GraphCanvas: React.FC = () => {
             'text-halign': 'center',
             'text-wrap': 'wrap',
             'text-max-width': '100px',
-            'background-color': '#1e3a25', // Forest Uniform Base
+            'background-fit': 'cover',
             'border-width': 2,
-            'border-style': 'dashed', // The "Stitched" Look
+            'border-style': 'dashed',
             'border-color': THEME.colors.antiqueBrass,
-            'width': (ele: any) => 60 + ((ele.data('pagerank') || 0) * 100),
-            'height': (ele: any) => 40 + ((ele.data('pagerank') || 0) * 80),
+            // Use importance for size, fallback to pagerank
+            'width': (ele: any) => 60 + ((ele.data('importance') || ele.data('pagerank') || 0) * 100),
+            'height': (ele: any) => 40 + ((ele.data('importance') || ele.data('pagerank') || 0) * 80),
             'text-outline-width': 2,
             'text-outline-color': '#050a06',
             'text-outline-opacity': 1,
-            'transition-property': 'background-color, width, height, border-width, border-color',
+            'shadow-blur': 0,
+            'transition-property': 'background-color, width, height, border-width, border-color, opacity, display',
             'transition-duration': 300
-          }
+          } as any
         },
         {
           selector: 'edge',
@@ -114,8 +127,18 @@ export const GraphCanvas: React.FC = () => {
             'target-arrow-color': THEME.colors.antiqueBrass,
             'target-arrow-shape': 'triangle',
             'curve-style': 'bezier',
-            'opacity': 0.6
-          }
+            'opacity': 0.6,
+            'label': 'data(label)', // Show relationship type or label
+            'font-size': '8px',
+            'color': THEME.colors.parchment,
+            'text-outline-width': 1,
+            'text-outline-color': '#050a06',
+            'text-outline-opacity': 1,
+            'text-background-opacity': 0.8,
+            'text-background-color': THEME.colors.forestUniform,
+            'text-background-shape': 'roundrectangle',
+            'edge-text-rotation': 'autorotate',
+          } as any
         },
         {
           selector: ':selected',
@@ -123,19 +146,12 @@ export const GraphCanvas: React.FC = () => {
             'border-width': 4,
             'border-style': 'solid',
             'border-color': THEME.colors.parchment,
-            'background-color': THEME.colors.crimson,
             'line-color': THEME.colors.parchment,
             'target-arrow-color': THEME.colors.parchment,
-            'opacity': 1
-          }
-        },
-        {
-            selector: 'node[type="organization"]',
-            style: { 'background-color': '#7f1d1d' } // Dark Red base
-        },
-        {
-            selector: 'node[type="event"]',
-            style: { 'shape': 'diamond', 'background-color': '#78350f' } // Amber base
+            'opacity': 1,
+            'shadow-blur': 10,
+            'shadow-color': THEME.colors.antiqueBrass
+          } as any
         }
       ],
       wheelSensitivity: 0.2,
@@ -197,22 +213,38 @@ export const GraphCanvas: React.FC = () => {
       cy.elements().remove();
       cy.add([
         ...filteredGraph.nodes.map(n => ({ group: 'nodes', data: n.data, position: n.position || {x:0, y:0} })),
-        ...filteredGraph.edges.map(e => ({ group: 'edges', data: e.data }))
+        // Use EdgeData.label as fallback for display if relationType isn't set, otherwise use relationType
+        ...filteredGraph.edges.map(e => ({ group: 'edges', data: { ...e.data, label: e.data.label || e.data.relationType } }))
       ] as any);
 
-      // Filtering Logic (Year)
+      // Apply SVG Backgrounds for Rank Insignia
+      cy.nodes().forEach(node => {
+          const rank = node.data('pagerank') || 0;
+          const type = node.data('type');
+          const svgData = getRankInsigniaSVG(rank, type);
+          node.style('background-image', svgData);
+      });
+
+      // Filtering Logic (Year) - now uses NodeData.validity
       if (timelineYear !== null) {
          cy.nodes().forEach(node => {
-            const y = node.data('year');
-            if (!y) { // Timeless concepts
+            const nodeYear = getYearFromTemporalFact(node.data('validity')); // Use the helper
+            if (!nodeYear) { // Timeless concepts or nodes without temporal data
                 node.style('opacity', 0.4);
-            } else if (y > timelineYear) {
+                node.style('display', 'element'); // Keep visible but dim
+            } else if (nodeYear > timelineYear) {
                 node.style('display', 'none');
             } else {
                 node.style('opacity', 1);
                 node.style('display', 'element');
             }
          });
+         // TODO: Implement temporal filtering for edges based on EdgeData.temporal
+      } else { // No timeline filter
+        cy.nodes().forEach(node => {
+          node.style('opacity', 1);
+          node.style('display', 'element');
+        });
       }
     });
 
@@ -252,20 +284,32 @@ export const GraphCanvas: React.FC = () => {
                 node.style('border-style', 'dashed');
             }
 
-            // Certainty: Alleged = Dotted
-            if (showCertainty && data.certainty === 'alleged') {
-                node.style('border-style', 'dotted');
-                node.style('opacity', 0.7);
+            // Certainty: Alleged = Dotted, Hypothesized = Dashed-dotted
+            if (showCertainty) {
+                if (data.certainty === 'alleged') {
+                    node.style('border-style', 'dotted');
+                    node.style('opacity', 0.7);
+                } else if (data.certainty === 'hypothesized') {
+                    node.style('border-style', 'dashed-dotted');
+                    node.style('opacity', 0.6);
+                } else {
+                    node.style('border-style', 'dashed'); // Default for confirmed/disputed
+                    node.style('opacity', 1);
+                }
+            } else {
+                node.style('border-style', 'dashed');
+                node.style('opacity', 1);
             }
+
 
             // Deepening Highlight
             if (deepeningNodeId && data.id === deepeningNodeId) {
-                node.style('background-color', THEME.colors.crimson);
-                node.style('color', '#fff');
+                node.style('border-color', THEME.colors.crimson);
+                node.style('border-width', 4);
             }
         });
     });
-  }, [isSecurityMode, showCertainty, deepeningNodeId]);
+  }, [isSecurityMode, showCertainty, deepeningNodeId, filteredGraph]); // Added filteredGraph to trigger style updates on filter changes
 
   return (
     <div className="w-full h-full relative bg-bunker-dark">
@@ -295,9 +339,24 @@ export const GraphCanvas: React.FC = () => {
              <div className="text-center border-b border-antique-brass/50 pb-1 mb-1">
                 <span className="font-spectral font-bold uppercase tracking-wider text-sm">{tooltip.data.label}</span>
              </div>
-             <p className="text-[10px] font-serif leading-tight text-center pb-4 italic opacity-80 line-clamp-3">
-               {tooltip.data.description || "No intelligence data available."}
-             </p>
+             {tooltip.data.description && (
+               <p className="text-[10px] font-serif leading-tight text-center pb-4 italic opacity-80 line-clamp-3">
+                 {tooltip.data.description}
+               </p>
+             )}
+             {/* Node Validity/Dates */}
+             {tooltip.data.validity && (
+                <p className="text-[9px] font-mono text-zinc-600 text-center mt-2">
+                    {tooltip.data.validity.type === 'instant' && `(${tooltip.data.validity.timestamp})`}
+                    {tooltip.data.validity.type === 'interval' && `(${tooltip.data.validity.start}-${tooltip.data.validity.end})`}
+                    {tooltip.data.validity.type === 'fuzzy' && `(${tooltip.data.validity.approximate})`}
+                </p>
+             )}
+             {tooltip.data.region && tooltip.data.region.label && (
+                <p className="text-[9px] font-mono text-zinc-600 text-center mt-1">
+                    {tooltip.data.region.label}
+                </p>
+             )}
              
              {/* Rank Chevron Overlay */}
              {(tooltip.data.pagerank || 0) > 0.1 && (

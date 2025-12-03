@@ -1,10 +1,42 @@
 
+
 import { GoogleGenAI } from "@google/genai";
-import { ChatMessage, KnowledgeGraph, NodeData } from "../types";
+import { 
+  ChatMessage, 
+  KnowledgeGraph, 
+  NodeData, 
+  PythonAnalysisResult, 
+  GraphPatch, 
+  TemporalFactType, 
+  SourceCitation,
+  RegionInfo,
+  EdgeData
+} from "../types";
 import { getEmbedding, cosineSimilarity } from './embeddingService';
 
 const API_KEY = process.env.API_KEY || '';
 const getAiClient = () => new GoogleGenAI({ apiKey: API_KEY });
+
+// --- Helper to parse temporal strings ---
+// Exported to be used in store.ts
+export function parseTemporalFact(dateString?: string, yearNum?: number): TemporalFactType | undefined {
+  if (dateString) {
+    const intervalMatch = dateString.match(/^(\d{4})-(\d{4})$/);
+    if (intervalMatch) {
+      return { type: 'interval', start: intervalMatch[1], end: intervalMatch[2] };
+    }
+    const yearMatch = dateString.match(/^\d{4}$/);
+    if (yearMatch) {
+      return { type: 'instant', timestamp: dateString };
+    }
+    // Fallback for more complex strings
+    return { type: 'fuzzy', approximate: dateString };
+  }
+  if (yearNum) {
+    return { type: 'instant', timestamp: String(yearNum) };
+  }
+  return undefined;
+}
 
 // --- Smart Context Helper ---
 async function getSmartContext(
@@ -93,6 +125,7 @@ function cleanAndParseJSON(text: string): any {
   try {
     return JSON.parse(clean);
   } catch (e) {
+    console.error("Failed to parse JSON:", clean, e); // Log for debugging
     return {}; 
   }
 }
@@ -101,7 +134,7 @@ export async function chatWithAgent(
   history: ChatMessage[], 
   userMessage: string,
   graphContext: KnowledgeGraph
-): Promise<{ text: string, reasoning: string, sources?: any[] }> {
+): Promise<{ text: string, reasoning: string, sources?: SourceCitation[] }> { // Updated sources type
     if (!API_KEY) throw new Error("API Key missing");
     const ai = getAiClient();
     try {
@@ -120,7 +153,11 @@ export async function chatWithAgent(
          history: formattedHistory
       });
       const result = await chat.sendMessage({ message: userMessage });
-      return { text: result.text || "...", reasoning: "Analiza geopolityczna...", sources: [] };
+      return { 
+        text: result.text || "...", 
+        reasoning: "Analiza geopolityczna...", 
+        sources: [] 
+      };
     } catch (e: any) {
       return { text: `Błąd: ${e.message}`, reasoning: "" };
     }
@@ -128,11 +165,14 @@ export async function chatWithAgent(
 
 /**
  * INGESTION PIPELINE: Analyze Documents (PDF/Images)
+ * Agile Graph Architect: This function leverages Gemini's multimodal vision
+ * to extract entities and relationships from unstructured historical documents.
+ * It's crucial for populating the graph from primary sources.
  */
 export async function analyzeDocument(
   file: File,
   currentGraph: KnowledgeGraph
-): Promise<{ newNodes: any[], newEdges: any[], thoughtSignature: string }> {
+): Promise<GraphPatch> { // Updated return type to GraphPatch
   const ai = getAiClient();
   
   // Convert File to base64
@@ -151,18 +191,37 @@ export async function analyzeDocument(
   const mimeType = file.type;
   
   const prompt = `
-    You are an Intelligence Officer analyzing a captured archival document.
+    You are an Intelligence Officer analyzing a captured archival document from the Endecja era (1893-1939).
     
     TASK:
-    1. Extract all key entities (People, Organizations, Events) and relationships.
-    2. Ignore generic entities; focus on the Endecja movement context.
-    3. Return a JSON patch to merge into the Knowledge Graph.
+    1. Extract all key entities (People, Organizations, Events, Publications, Concepts, Locations, Documents related to the file itself) and relationships.
+    2. Focus on the Endecja movement context and Polish history.
+    3. For each extracted entity, determine its 'validity' (temporal existence) as an 'instant' (e.g., "1934") or 'interval' (e.g., "1918-1939").
+    4. For each relationship, determine its 'temporal' context.
+    5. Provide specific 'sources' as a structured array for *each* node and edge, referencing the document.
+    6. For node 'region', if location is clear, provide structured RegionInfo.
     
-    SCHEMA:
+    SCHEMA for Nodes:
+    - id: "slug_name"
+    - label: "Full Name"
+    - type: "person|organization|event|concept|publication|location|document"
+    - description: "Brief context"
+    - validity: { type: "instant"|"interval"|"fuzzy", timestamp/start/approximate: "YYYY..." }
+    - region?: { id: "slug", label: "Region Name", type: "city|province|country" }
+    - sources: [{ uri: "${file.name}", label: "Document Scan", type: "archival" }]
+    
+    SCHEMA for Edges:
+    - source: "source_id"
+    - target: "target_id"
+    - relationType: "founded|member_of|led|published|influenced|opposed|collaborated_with|participated_in|authored|organized|related_to"
+    - temporal: { type: "instant"|"interval", timestamp/start: "YYYY..." }
+    - sources: [{ uri: "${file.name}", label: "Document Scan", type: "archival" }]
+    
+    RETURN ONLY A JSON OBJECT.
     {
-      "thoughtSignature": "Brief analysis of the document's significance",
-      "nodes": [ { "id": "slug", "label": "Name", "type": "person|organization|event", "description": "Extracted context", "sources": ["${file.name}"] } ],
-      "edges": [ { "source": "slug", "target": "slug", "label": "relationship", "sources": ["${file.name}"] } ]
+      "thoughtSignature": "Brief analysis of the document's significance and key takeaways.",
+      "nodes": [ { id: string, label: string, type: string, description?: string, validity?: TemporalFactType, region?: RegionInfo, sources?: SourceCitation[] } ],
+      "edges": [ { source: string, target: string, relationType: string, temporal?: TemporalFactType, sources?: SourceCitation[] } ]
     }
   `;
 
@@ -180,9 +239,10 @@ export async function analyzeDocument(
 
     const parsed = cleanAndParseJSON(response.text || '{}');
     return {
-        newNodes: parsed.nodes || [],
-        newEdges: parsed.edges || [],
-        thoughtSignature: parsed.thoughtSignature || "Document analysis complete."
+        type: 'document_ingestion', // Changed type
+        nodes: parsed.nodes || [],
+        edges: parsed.edges || [],
+        reasoning: parsed.thoughtSignature || "Document analysis complete."
     };
   } catch (e) {
       console.error("Ingestion failed:", e);
@@ -190,30 +250,62 @@ export async function analyzeDocument(
   }
 }
 
+/**
+ * Agentic Graph Expansion.
+ * Agile Graph Architect: Expands the graph by searching for new entities and relationships
+ * based on a user query, ensuring historical context and source attribution.
+ */
 export async function generateGraphExpansion(
   currentGraph: KnowledgeGraph, 
   query: string
-): Promise<{ newNodes: any[], newEdges: any[], thoughtProcess: string }> {
+): Promise<GraphPatch> { // Updated return type to GraphPatch
   const ai = getAiClient();
   const contextString = await getSmartContext(currentGraph, undefined, 120, query);
 
   const prompt = `
-    Expand graph for query: "${query}".
-    Context: ${contextString}
-    TOOLS: Use Google Search to verify dates and names.
-    RETURN JSON.
-    SCHEMA:
+    You are a Historical Intelligence Agent, specializing in the Endecja movement (1893-1939).
+    Expand the knowledge graph based on the query: "${query}".
+    
+    Current Graph Context: ${contextString}
+    
+    TASK:
+    1. Identify new entities (person, organization, event, concept, publication, location) and their key relationships.
+    2. For each extracted entity, determine its 'validity' (temporal existence) as an 'instant' (e.g., "1934") or 'interval' (e.g., "1918-1939").
+    3. For each relationship, determine its 'temporal' context.
+    4. Provide specific 'sources' as a structured array for *each* node and edge.
+    5. For node 'region', provide structured RegionInfo if location is clear.
+    6. Prioritize historically relevant information directly related to the Endecja movement.
+    
+    TOOLS: Use Google Search to verify dates, names, relationships, and sources.
+    
+    RETURN ONLY A JSON OBJECT.
+    SCHEMA for Nodes:
+    - id: "slug_name"
+    - label: "Full Name"
+    - type: "person|organization|event|concept|publication|location"
+    - description: "Short description with historical context."
+    - validity: { type: "instant"|"interval", timestamp/start: "YYYY..." }
+    - region?: { id: "slug", label: "Region Name", type: "city|province|country" }
+    - sources: [{ uri: "https://...", label: "Source Title", type: "website" }]
+    
+    SCHEMA for Edges:
+    - source: "source_id"
+    - target: "target_id"
+    - relationType: "founded|member_of|led|published|influenced|opposed|collaborated_with|participated_in|authored|organized|related_to"
+    - temporal: { type: "instant"|"interval", timestamp/start: "YYYY..." }
+    - sources: [{ uri: "https://...", label: "Source Title", type: "website" }]
+    
     {
-      "thoughtSignature": "Reasoning...",
-      "nodes": [ { "id": "slug", "label": "Name", "type": "type", "description": "desc", "sources": ["Google Search"] } ],
-      "edges": [ { "source": "slug", "target": "slug", "label": "label", "sources": ["Google Search"] } ]
+      "thoughtSignature": "Brief reasoning for the expansion, citing key findings.",
+      "nodes": [ { id: string, label: string, type: string, description?: string, validity?: TemporalFactType, region?: RegionInfo, sources?: SourceCitation[] } ],
+      "edges": [ { source: string, target: string, relationType: string, temporal?: TemporalFactType, sources?: SourceCitation[] } ]
     }
   `;
   
   try {
     const response = await ai.models.generateContent({
         model: 'gemini-3-pro-preview',
-        contents: prompt,
+        contents: [{ role: 'user', parts: [{ text: prompt }] }],
         config: {
           thinkingConfig: { thinkingLevel: 'high' } as any,
           tools: [{ googleSearch: {} }],
@@ -221,40 +313,70 @@ export async function generateGraphExpansion(
     });
     const parsed = cleanAndParseJSON(response.text || '{}');
     return {
-        newNodes: parsed.nodes || [],
-        newEdges: parsed.edges || [],
-        thoughtProcess: parsed.thoughtSignature || "Expansion complete."
+        type: 'expansion',
+        nodes: parsed.nodes || [],
+        edges: parsed.edges || [],
+        reasoning: parsed.thoughtSignature || "Expansion complete."
     };
   } catch (e) {
-    return { newNodes: [], newEdges: [], thoughtProcess: "Error." };
+    console.error("Graph expansion failed:", e);
+    throw new Error("Intelligence Expansion Failed: " + (e as any).message);
   }
 }
 
+/**
+ * Agentic Node Deepening.
+ * Agile Graph Architect: Conducts deep research on a specific node, enriching its
+ * properties and discovering new relationships with full source attribution.
+ */
 export async function generateNodeDeepening(
   node: NodeData,
   currentGraph: KnowledgeGraph
-): Promise<{ updatedProperties: Partial<NodeData>, newEdges: any[], thoughtSignature: string }> {
+): Promise<GraphPatch> { // Updated return type to GraphPatch
   const ai = getAiClient();
   const contextString = await getSmartContext(currentGraph, node, 100);
 
   const prompt = `
-    Deep research on: "${node.label}" (${node.type}).
-    Context: ${contextString}
-    TASK: Find specific, sourced relationships and facts.
-    TOOLS: Use Google Search.
+    You are a Historical Intelligence Agent, specializing in the Endecja movement.
+    Conduct deep research on the entity: "${node.label}" (ID: ${node.id}, Type: ${node.type}).
     
-    OUTPUT SCHEMA:
+    Current Graph Context (related entities): ${contextString}
+    
+    TASK:
+    1. Enrich the node's existing properties (description, validity, region) with more detail and precision.
+    2. If the node is a 'person' or 'organization', discover specific 'existence' (e.g., dates of formation/dissolution) or 'roles' (for persons).
+    3. Discover specific, sourced new relationships (edges) involving this node.
+    4. Ensure all new information (properties, existence/roles, edges) is historically accurate and attributed to structured 'sources'.
+    
+    TOOLS: Use Google Search to find detailed historical information.
+    
+    OUTPUT SCHEMA for updatedProperties:
+    - description: "More detailed biography/context."
+    - validity?: { type: "instant"|"interval", timestamp/start: "YYYY..." }
+    - region?: { id: "slug", label: "Region Name", type: "city|province|country" }
+    - existence?: Array<{ start: string; end?: string; status: string; context?: string; }> (for orgs)
+    - roles?: Array<{ role: string; organization?: string; start: string; end?: string; context?: string; }> (for persons)
+    - sources: [{ uri: "https://...", label: "Source Title", type: "website" }]
+    
+    OUTPUT SCHEMA for newEdges:
+    - source: "${node.id}" (or other ID if the deepened node is the target)
+    - target: "slug_of_related_entity"
+    - relationType: "founded|member_of|led|published|influenced|opposed|collaborated_with|participated_in|authored|organized|related_to"
+    - temporal: { type: "instant"|"interval", timestamp/start: "YYYY..." }
+    - sources: [{ uri: "https://...", label: "Source Title", type: "website" }]
+    
+    RETURN ONLY A JSON OBJECT.
     {
-      "thoughtSignature": "Research summary",
-      "updatedProperties": { "description": "...", "sources": ["url1", "url2"] },
-      "newEdges": [ { "source": "${node.id}", "target": "id", "label": "rel", "sources": ["url1"] } ]
+      "thoughtSignature": "Concise summary of research findings for ${node.label}.",
+      "updatedProperties": { /* properties as per schema above */ },
+      "newEdges": [ /* edges as per schema above */ ]
     }
   `;
 
   try {
     const response = await ai.models.generateContent({
       model: 'gemini-3-pro-preview',
-      contents: prompt,
+      contents: [{ role: 'user', parts: [{ text: prompt }] }],
       config: {
         thinkingConfig: { thinkingLevel: 'high' } as any,
         tools: [{ googleSearch: {} }],
@@ -263,18 +385,123 @@ export async function generateNodeDeepening(
 
     const parsed = cleanAndParseJSON(response.text || '{}');
     return {
-      updatedProperties: parsed.updatedProperties || {},
-      newEdges: parsed.newEdges || [],
-      thoughtSignature: parsed.thoughtSignature || "Research complete."
+      type: 'deepening',
+      nodes: parsed.updatedProperties ? [{ id: node.id, ...parsed.updatedProperties }] : [],
+      edges: parsed.newEdges || [],
+      reasoning: parsed.thoughtSignature || "Research complete."
     };
   } catch (e) {
-    return { updatedProperties: {}, newEdges: [], thoughtSignature: "Error." };
+    console.error("Node deepening failed:", e);
+    throw new Error("Intelligence Deepening Failed: " + (e as any).message);
   }
 }
 
-export async function generateCommunityInsight(nodes: NodeData[], edges: any[]): Promise<string> {
+export async function generateCommunityInsight(nodes: NodeData[], edges: EdgeData[]): Promise<string> { // Updated EdgeData type
     const ai = getAiClient();
     const prompt = `Summarize this community: ${nodes.map(n=>n.label).join(', ')}.`;
     const response = await ai.models.generateContent({ model: 'gemini-3-pro-preview', contents: prompt });
     return response.text || "";
+}
+
+/**
+ * 🚀 NEW: Python-Powered Graph Analysis
+ * Simulates a Python environment to run NetworkX algorithms on the current graph state.
+ * Uses Gemini's codeExecution tool.
+ */
+export async function runDeepAnalysis(graph: KnowledgeGraph): Promise<PythonAnalysisResult> {
+  const ai = getAiClient();
+  
+  // 1. Sanitize Graph for Python (Minimal payload to save tokens)
+  const pyGraph = {
+    nodes: graph.nodes.map(n => ({ 
+      id: n.data.id, 
+      label: n.data.label, 
+      type: n.data.type,
+      // Pass primary year for temporal filtering within Python
+      year: (n.data.validity?.type === 'instant' || n.data.validity?.type === 'interval') 
+              ? parseInt(n.data.validity.type === 'instant' ? n.data.validity.timestamp : n.data.validity.start) 
+              : undefined
+    })),
+    edges: graph.edges.map(e => ({ 
+      source: e.data.source, 
+      target: e.data.target,
+      // Pass sign and temporal info for temporal/signed graph analysis in Python
+      sign: e.data.sign === 'negative' ? -1 : 1,
+      year: (e.data.temporal?.type === 'instant' || e.data.temporal?.type === 'interval') 
+              ? parseInt(e.data.temporal.type === 'instant' ? e.data.temporal.timestamp : e.data.temporal.start) 
+              : undefined
+    }))
+  };
+
+  const prompt = `
+    You are the "Graph Intelligence Officer" for the Endecja Movement.
+    
+    TASK: Perform a deep structural analysis of this network using Python and NetworkX.
+    
+    DATA (JSON):
+    ${JSON.stringify(pyGraph)}
+
+    PYTHON SCRIPT REQUIREMENTS:
+    1. Load data into a NetworkX DiGraph or Graph, considering edge 'sign' for signed networks if applicable.
+    2. Compute the following metrics:
+       - Density.
+       - Transitivity (global clustering coefficient).
+       - Check if the graph is connected (weakly connected for directed graphs) and count weakly connected components.
+       - PageRank (find top 5 influencers by ID and label).
+       - Betweenness Centrality (find top 3 influencers by ID and label, if graph size <= 500 to avoid performance issues).
+       - Louvain Communities (using \`python-louvain\` or NetworkX's community algorithms).
+       - Largest community size.
+    3. The final output MUST be a JSON string with the results.
+    
+    After the code, provide a "Strategic Commentary" as Roman Dmowski (1934), interpreting these stats. 
+    Is the movement fragmented (many components)? Who controls the flow of information (high betweenness/pagerank)? How cohesive are the factions (modularity)?
+    
+    RETURN JSON SCHEMA (ENSURE IT IS VALID JSON):
+    {
+      "global_metrics": { "density": float, "transitivity": float, "is_connected": boolean, "number_connected_components": int },
+      "community_structure": { "modularity": float, "num_communities": int, "largest_community_size": int },
+      "key_influencers": [ {"id": str, "label": str, "score": float, "metric": "pagerank" | "betweenness"} ],
+      "strategic_commentary": "String"
+    }
+    
+    Only output the Python script and then the JSON output, followed by the strategic commentary.
+  `;
+
+  try {
+    const response = await ai.models.generateContent({
+      model: 'gemini-3-pro-preview', // Use the smart model for code gen
+      contents: [{ role: 'user', parts: [{ text: prompt }] }],
+      config: {
+        tools: [{ codeExecution: {} }], // Enable Python Sandbox
+      }
+    });
+
+    const text = response.text || "{}";
+    
+    // Extract JSON from potential markdown blocks, prioritizing the schema output
+    let jsonStr = text;
+    const jsonMatch = text.match(/```json\s*(\{[\s\S]*?\})\s*```/);
+    if (jsonMatch && jsonMatch[1]) {
+      jsonStr = jsonMatch[1];
+    } else {
+      // Fallback if not wrapped in markdown
+      const directJsonMatch = text.match(/\{[\s\S]*"global_metrics"[\s\S]*\}/);
+      if (directJsonMatch) jsonStr = directJsonMatch[0];
+    }
+
+    const result = JSON.parse(jsonStr);
+    
+    return {
+      timestamp: Date.now(),
+      global_metrics: result.global_metrics,
+      community_structure: result.community_structure || { num_communities: 0, modularity: 0, largest_community_size: 0 },
+      key_influencers: result.key_influencers || [],
+      strategic_commentary: result.strategic_commentary || "Analysis inconclusive.",
+      raw_output: text
+    };
+
+  } catch (e) {
+    console.error("Deep Analysis Failed", e);
+    throw new Error("Intelligence Gathering Failed: " + (e as any).message);
+  }
 }

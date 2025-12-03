@@ -1,3 +1,5 @@
+
+
 import React, { useEffect } from 'react';
 import { SidebarLeft } from './components/SidebarLeft';
 import { SidebarRight } from './components/SidebarRight';
@@ -8,6 +10,7 @@ import { StatsPanel } from './components/StatsPanel';
 import { SemanticSearch } from './components/SemanticSearch';
 import { PatchReviewModal } from './components/PatchReviewModal';
 import { ResearchDashboard } from './components/ResearchDashboard';
+import { AnalysisConsole } from './components/AnalysisConsole'; // NEW IMPORT
 import { useStore } from './store';
 import { X, CheckCircle, AlertCircle, Info, PanelLeftOpen, PanelRightOpen } from 'lucide-react';
 
@@ -58,6 +61,7 @@ function App() {
       <SemanticSearch />
       <PatchReviewModal />
       <ResearchDashboard />
+      <AnalysisConsole /> {/* NEW COMPONENT */}
 
       <div className="fixed bottom-20 right-4 flex flex-col gap-2 z-50 pointer-events-none">
         {toasts.map(toast => (

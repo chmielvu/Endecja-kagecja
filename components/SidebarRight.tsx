@@ -1,18 +1,27 @@
+
 import React, { useState, useRef, useEffect } from 'react';
 import { useStore } from '../store';
 import { chatWithAgent } from '../services/geminiService';
 import { Send, Cpu, ChevronDown, ChevronRight, MessageSquare, Scroll, PanelRightClose } from 'lucide-react';
+import { DossierPanel } from './DossierPanel';
 
 export const SidebarRight: React.FC = () => {
-  const { messages, addMessage, isThinking, setThinking, graph, isRightSidebarOpen, toggleRightSidebar } = useStore();
+  const { messages, addMessage, isThinking, setThinking, graph, isRightSidebarOpen, toggleRightSidebar, selectedNodeIds } = useStore();
   const [input, setInput] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // Logic to determine view mode
+  const selectedNode = selectedNodeIds.length === 1 
+      ? graph.nodes.find(n => n.data.id === selectedNodeIds[0])?.data 
+      : null;
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
-  useEffect(scrollToBottom, [messages, isThinking]);
+  useEffect(() => {
+     if (!selectedNode) scrollToBottom();
+  }, [messages, isThinking, selectedNode]);
 
   const handleSend = async () => {
     if (!input.trim() || isThinking) return;
@@ -49,53 +58,61 @@ export const SidebarRight: React.FC = () => {
       className={`bg-surface border-l border-archival-gold/20 flex flex-col flex-shrink-0 transition-all duration-300 ease-in-out relative shadow-2xl z-20 ${isRightSidebarOpen ? 'w-[420px]' : 'w-0'}`}
     >
       <div className="w-[420px] h-full flex flex-col">
-        {/* Header */}
-        <div className="p-4 border-b border-archival-gold/20 flex justify-between items-center bg-surface shrink-0">
-          <h2 className="text-lg font-bold text-[#e4e4e7] flex items-center gap-2 font-spectral">
-            <MessageSquare size={18} className="text-archival-gold" /> Roman Dmowski (1925)
-          </h2>
-          <div className="flex items-center gap-2">
-             <span className="text-[10px] bg-owp-green/10 text-owp-green border border-owp-green/30 px-2 py-0.5 rounded font-mono">PERSONA ACTIVE</span>
-             <button onClick={toggleRightSidebar} className="text-zinc-500 hover:text-white transition-colors ml-2"><PanelRightClose size={18}/></button>
-          </div>
-        </div>
+        
+        {/* VIEW SWITCHER: If node selected, show Dossier. Else show Chat. */}
+        {selectedNode ? (
+            <DossierPanel node={selectedNode} />
+        ) : (
+            <>
+                {/* Chat Header */}
+                <div className="p-4 border-b border-archival-gold/20 flex justify-between items-center bg-surface shrink-0">
+                  <h2 className="text-lg font-bold text-[#e4e4e7] flex items-center gap-2 font-spectral">
+                    <MessageSquare size={18} className="text-archival-gold" /> Roman Dmowski (1925)
+                  </h2>
+                  <div className="flex items-center gap-2">
+                     <span className="text-[10px] bg-owp-green/10 text-owp-green border border-owp-green/30 px-2 py-0.5 rounded font-mono">PERSONA ACTIVE</span>
+                     <button onClick={toggleRightSidebar} className="text-zinc-500 hover:text-white transition-colors ml-2"><PanelRightClose size={18}/></button>
+                  </div>
+                </div>
 
-        <div className="flex-1 overflow-y-auto p-4 space-y-4">
-          {messages.map((msg) => (
-            <ChatMessageItem key={msg.id} msg={msg} />
-          ))}
-          {isThinking && (
-            <div className="flex gap-2 items-start animate-pulse opacity-70">
-              <div className="w-8 h-8 rounded-full bg-archival-gold/20 flex items-center justify-center border border-archival-gold/30">
-                 <Cpu size={14} className="text-archival-gold" />
-              </div>
-              <div className="bg-zinc-900 rounded-lg p-3 text-xs text-zinc-400 font-serif italic border border-zinc-800">
-                Dmowski analizuje sytuację geopolityczną...
-              </div>
-            </div>
-          )}
-          <div ref={messagesEndRef} />
-        </div>
+                <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                  {messages.map((msg) => (
+                    <ChatMessageItem key={msg.id} msg={msg} />
+                  ))}
+                  {isThinking && (
+                    <div className="flex gap-2 items-start animate-pulse opacity-70">
+                      <div className="w-8 h-8 rounded-full bg-archival-gold/20 flex items-center justify-center border border-archival-gold/30">
+                         <Cpu size={14} className="text-archival-gold" />
+                      </div>
+                      <div className="bg-zinc-900 rounded-lg p-3 text-xs text-zinc-400 font-serif italic border border-zinc-800">
+                        Dmowski analizuje sytuację geopolityczną...
+                      </div>
+                    </div>
+                  )}
+                  <div ref={messagesEndRef} />
+                </div>
 
-        <div className="p-4 border-t border-archival-gold/20 bg-surface shrink-0">
-          <div className="flex gap-2">
-            <input
-              type="text"
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handleSend()}
-              placeholder="Zadaj pytanie Panu Romanowi..."
-              className="flex-1 bg-zinc-950 border border-zinc-800 rounded-sm px-3 py-2 text-sm text-white focus:outline-none focus:border-archival-gold font-serif placeholder:font-sans placeholder:text-zinc-600"
-            />
-            <button 
-              onClick={handleSend}
-              disabled={isThinking}
-              className="bg-owp-green hover:bg-[#2f5335] text-white p-2 rounded-sm disabled:opacity-50 border border-owp-green"
-            >
-              <Send size={16} />
-            </button>
-          </div>
-        </div>
+                <div className="p-4 border-t border-archival-gold/20 bg-surface shrink-0">
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={input}
+                      onChange={(e) => setInput(e.target.value)}
+                      onKeyDown={(e) => e.key === 'Enter' && handleSend()}
+                      placeholder="Zadaj pytanie Panu Romanowi..."
+                      className="flex-1 bg-zinc-950 border border-zinc-800 rounded-sm px-3 py-2 text-sm text-white focus:outline-none focus:border-archival-gold font-serif placeholder:font-sans placeholder:text-zinc-600"
+                    />
+                    <button 
+                      onClick={handleSend}
+                      disabled={isThinking}
+                      className="bg-owp-green hover:bg-[#2f5335] text-white p-2 rounded-sm disabled:opacity-50 border border-owp-green"
+                    >
+                      <Send size={16} />
+                    </button>
+                  </div>
+                </div>
+            </>
+        )}
       </div>
     </div>
   );

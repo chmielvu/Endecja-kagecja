@@ -1,31 +1,76 @@
 
-export type NodeType = 'person' | 'organization' | 'event' | 'concept' | 'publication';
+
+export type NodeType = 'person' | 'organization' | 'event' | 'concept' | 'publication' | 'document' | 'location'; // Added 'document', 'location'
+
+// New: Structured Source Citation
+export interface SourceCitation {
+  uri: string; // URL, ISBN, Archival Reference ID
+  label?: string; // Title or short description
+  page?: string; // Page number or specific section (e.g., "pg. 42", "Chapter 3")
+  type?: 'primary' | 'secondary' | 'archival' | 'memoir' | 'report' | 'website' | 'book'; // Type of source
+  retrievedAt?: number; // Timestamp of when the source was used/retrieved
+}
+
+// New: Structured Location/Region Information
+export interface RegionInfo {
+  id: string; // e.g., 'warszawa_1934', 'wielkopolska_historical'
+  label: string; // e.g., 'Warszawa (1934)', 'Wielkopolska'
+  country?: string; // e.g., 'Poland'
+  coordinates?: { latitude: number; longitude: number; }; // For map integration
+  type?: 'city' | 'province' | 'country' | 'geopolitical_entity' | 'historical_region';
+}
+
+// ENHANCEMENT: Unified Temporal Representation for Dates/Validity
+export type TemporalFactType = 
+  | { type: 'instant'; timestamp: string } // e.g., "1918-11-11" or "1903"
+  | { type: 'interval'; start: string; end: string } // e.g., "1918-1939"
+  | { type: 'fuzzy'; approximate: string; uncertainty?: number }; // uncertainty 0.0 to 1.0 (e.g., "early 1900s", uncertainty 0.2)
 
 export interface NodeData {
   id: string;
   label: string;
   type: NodeType;
-  year?: number; // Approximate year of relevance
   description?: string;
-  dates?: string;
-  importance?: number;
-  region?: string; // 'Warszawa', 'Wielkopolska', 'Galicja', 'Emigracja'
+
+  // ENHANCEMENT: Unified Temporal Representation for Node Existence/Validity
+  // Replaces 'year' and 'dates' strings. Uses 'TemporalFactType' for more nuance.
+  validity?: TemporalFactType; 
+
+  // ENHANCEMENT: Detailed existence and role history (from previous TemporalNode)
+  existence?: Array<{ // For organizations, movements, etc.
+    start: string; // ISO date or YYYY
+    end?: string; // ISO date or YYYY
+    status: 'active' | 'latent' | 'defunct' | 'reformed' | 'formed' | 'dissolved' | 'established';
+    context?: string; // e.g., "Formed during the Great War"
+  }>;
+  roles?: Array<{ // For persons
+    role: string; // e.g., 'Leader', 'Member', 'Editor'
+    organization?: string; // ID of organization node
+    event?: string; // ID of event node
+    start: string; // ISO date or YYYY
+    end?: string; // ISO date or YYYY
+    context?: string; // e.g., "Assumed leadership after Dmowski's death"
+  }>;
+
+  importance?: number; // PageRank / Betweenness can derive this, or manually set
+  
+  // ENHANCEMENT: Structured Region
+  region?: RegionInfo; // Replaced string with structured data
+
   parent?: string; // For Compound Nodes (Cytoscape)
   
-  // Metrics
+  // --- Metrics --- 
   degreeCentrality?: number;
   pagerank?: number;
   community?: number; // Legacy/Fallback
   louvainCommunity?: number; // Real Louvain Community ID
   kCore?: number;
-  
-  // Tier-3 Advanced Metrics
   betweenness?: number;
   closeness?: number;
   eigenvector?: number;
   clustering?: number; // Local Clustering Coefficient
 
-  // Clandestine / Security Metrics (SOTA Upgrade)
+  // --- Clandestine / Security Metrics --- 
   security?: {
     efficiency: number; // Speed of info spread (Closeness)
     safety: number; // Isolation from paths (1 - Betweenness)
@@ -34,100 +79,105 @@ export interface NodeData {
     vulnerabilities: string[];
   };
 
-  // Embedding for semantic search
+  // --- Research Metadata ---
   embedding?: number[]; 
-  sources?: string[];
-  certainty?: 'confirmed' | 'disputed' | 'alleged';
+  // ENHANCEMENT: Structured Sources
+  sources?: SourceCitation[]; // Replaced string[] with SourceCitation[]
+  certainty?: 'confirmed' | 'disputed' | 'alleged' | 'hypothesized'; // Added 'hypothesized'
+  // NEW: Confidence score (0-1) for more granular certainty
+  confidenceScore?: number; 
+
+  // Legacy fields to be phased out
+  year?: number; // TODO: Migrate to 'validity'
+  dates?: string; // TODO: Migrate to 'validity'
 }
 
-// --- TKG ENHANCEMENTS ---
 
-export type TemporalFactType = 
-  | { type: 'instant'; timestamp: string }
-  | { type: 'interval'; start: string; end: string }
-  | { type: 'fuzzy'; approximate: string; uncertainty: number }; // uncertainty 0.0 to 1.0
+// --- 2. TEMPORAL FACT/EDGE TYPES (Major Enhancement: Core Graph Edges will become Temporal Facts) ---
 
-export interface TemporalFact {
-  id: string;
-  subject: string; // entity ID
-  relation: string;
-  object: string; // entity ID
-  
-  // Temporal Discrimination
-  temporal: TemporalFactType;
-  
-  // Flat Indexing Helpers
-  validFrom?: string; // ISO date or year
-  validTo?: string; // Optional end date
-  
-  certainty: 'confirmed' | 'disputed' | 'alleged';
-  sources: string[];
-}
-
-export interface TemporalNode extends NodeData {
-  // Timeline of existence (e.g. for organizations or movements)
-  existence?: Array<{
-    start: string;
-    end?: string;
-    status: 'active' | 'latent' | 'defunct' | 'reformed';
-  }>;
-  
-  // Role evolution for persons
-  roles?: Array<{
-    role: string;
-    organization: string;
-    start: string;
-    end?: string;
-  }>;
-}
-
-export interface TemporalKnowledgeGraph {
-  nodes: GraphNode[]; // Wrapper around TemporalNode data
-  facts: TemporalFact[]; // Replaces standard edges in TKG mode
-  meta?: KnowledgeGraph['meta'];
-}
-
-// --- STANDARD GRAPH TYPES ---
-
+// ENHANCEMENT: EdgeData will now *be* a TemporalFact, with more structured relation types.
 export interface EdgeData {
   id: string;
-  source: string;
-  target: string;
-  label: string; // relationship
-  dates?: string;
-  validFrom?: number; // TKG Start
-  validTo?: number; // TKG End
-  weight?: number;
-  // Triadic Balance
-  sign?: 'positive' | 'negative';
-  isBalanced?: boolean;
-  certainty?: 'confirmed' | 'disputed' | 'alleged';
-  visibility?: 'public' | 'clandestine' | 'private';
+  source: string; // Node ID
+  target: string; // Node ID
+  
+  // ENHANCEMENT: Structured Relationship Type - use a controlled vocabulary
+  relationType: 
+    | 'founded' | 'member_of' | 'led' | 'published' | 'influenced' 
+    | 'opposed' | 'collaborated_with' | 'participated_in' | 'created' | 'destroyed' 
+    | 'related_to' | 'supported' | 'criticized' | 'authored' | 'organized'; 
+  
+  label?: string; // Optional human-readable label if relationType isn't enough (e.g., "secretly founded"). TODO: Make relationType primary, label secondary.
+  
+  // ENHANCEMENT: Unified Temporal Data for the Relationship Itself
+  temporal?: TemporalFactType;
+  
+  // Metadata for the relationship
+  weight?: number; // Strength of relationship
+  sign?: 'positive' | 'negative' | 'neutral'; // Added 'neutral'
+  isBalanced?: boolean; // From Triadic Balance
+  
+  // ENHANCEMENT: Structured Sources for the Relationship
+  sources?: SourceCitation[]; // Replaced string[] with SourceCitation[]
+  certainty?: 'confirmed' | 'disputed' | 'alleged' | 'hypothesized'; // Added 'hypothesized'
+  confidenceScore?: number; // Granular confidence for this specific edge/fact
+  
+  visibility?: 'public' | 'clandestine' | 'private' | 'restricted'; // Added 'restricted'
+
+  // Legacy fields to be phased out
+  dates?: string; // TODO: Migrate to 'temporal'
+  validFrom?: number; // TODO: Migrate to 'temporal'
+  validTo?: number; // TODO: Migrate to 'temporal'
 }
 
+
+// --- 3. GRAPH STRUCTURES (Update to use enhanced types) ---
+
 export interface GraphNode {
-  data: NodeData | TemporalNode;
+  data: NodeData; // Now uses the enriched NodeData
   position?: { x: number; y: number };
   selected?: boolean;
 }
 
 export interface GraphEdge {
-  data: EdgeData;
+  data: EdgeData; // Now uses the enriched EdgeData
 }
 
 export interface KnowledgeGraph {
   nodes: GraphNode[];
   edges: GraphEdge[];
+  // ENHANCEMENT: Consolidate Graph-Level Analysis Metrics
   meta?: {
-    modularity?: number;
-    globalBalance?: number; // 0 to 1
     lastSaved?: number;
-    version?: string; // Data version for migration
+    version?: string;
+
+    // Direct integration of PythonAnalysisResult's global metrics
+    globalMetrics?: {
+      density: number;
+      transitivity: number;
+      number_connected_components: number;
+      is_connected?: boolean; // Added from PythonAnalysisResult
+    };
+    communityStructure?: {
+      modularity: number;
+      num_communities: number;
+      // Added for more granular info from Python analysis
+      largest_community_size?: number; 
+    };
+    // Keep key influencers as a top-level summary
+    keyInfluencers?: Array<{ id: string; label: string; score: number; metric: 'pagerank' | 'betweenness' }>;
+    // The "Dmowski" insight for the *current* graph state
+    strategicCommentary?: string; 
+    // Any raw output for debugging
+    rawAnalysisOutput?: string;
+
+    modularity?: number; // Legacy, will be replaced by communityStructure.modularity
+    globalBalance?: number; // 0 to 1
   };
 }
 
 export interface GraphPatch {
-  type: 'expansion' | 'deepening';
+  type: 'expansion' | 'deepening' | 'document_ingestion'; // Added 'document_ingestion'
   reasoning: string;
   thoughtSignature?: string; // Gemini 3.0 Continuity Hash
   nodes: Partial<NodeData>[];
@@ -140,7 +190,7 @@ export interface ChatMessage {
   content: string;
   reasoning?: string; // For ReAct display
   timestamp: number;
-  sources?: Array<{ title: string; uri: string }>;
+  sources?: SourceCitation[]; // ENHANCEMENT: Structured sources
   toolCalls?: any[];
   toolResponses?: any[];
 }
@@ -167,10 +217,11 @@ export interface RegionalAnalysisResult {
 
 export interface ResearchTask {
   id: string;
-  type: 'expansion' | 'deepening' | 'analysis';
+  type: 'expansion' | 'deepening' | 'analysis' | 'ingestion'; // Added 'ingestion'
   target: string;
   status: 'running' | 'complete' | 'failed';
   reasoning?: string;
+  progress?: number; // 0-100
 }
 
 export interface LayoutParams {
@@ -181,6 +232,26 @@ export interface LayoutParams {
   idealEdgeLength: number;
 }
 
+// --- PYTHON ANALYSIS RESULTS (Keep as a specific *record* of an analysis run) ---
+// This is now the *result of a specific analysis run*, which can then update KnowledgeGraph.meta
+export interface PythonAnalysisResult {
+  timestamp: number;
+  global_metrics: {
+    density: number;
+    transitivity: number; // Global Clustering
+    is_connected: boolean; // Added for consistency
+    number_connected_components: number;
+  };
+  community_structure: {
+    modularity: number;
+    num_communities: number;
+    largest_community_size: number; // Added for consistency
+  };
+  key_influencers: Array<{ id: string; label: string; score: number; metric: 'pagerank' | 'betweenness' }>; // Added 'betweenness'
+  strategic_commentary: string; 
+  raw_output?: string;
+}
+
 export interface AppState {
   graph: KnowledgeGraph;
   filteredGraph: KnowledgeGraph;
@@ -189,7 +260,7 @@ export interface AppState {
   deepeningNodeId: string | null;
   pendingPatch: GraphPatch | null;
   activeResearchTasks: ResearchTask[];
-  metricsCalculated: boolean;
+  metricsCalculated: boolean; // Will now reflect successful update of KnowledgeGraph.meta
   activeCommunityColoring: boolean;
   showCertainty: boolean;
   isSecurityMode: boolean;
@@ -199,7 +270,7 @@ export interface AppState {
   minDegreeFilter: number;
   isSidebarOpen: boolean;
   isRightSidebarOpen: boolean;
-  timelineYear: number | null;
+  timelineYear: number | null; // This will now filter nodes based on NodeData.validity
   isPlaying: boolean;
   regionalAnalysis: RegionalAnalysisResult | null;
   showStatsPanel: boolean;
@@ -207,6 +278,10 @@ export interface AppState {
   messages: ChatMessage[];
   isThinking: boolean;
   toasts: Toast[];
+
+  // This could become an array if we want a history of analysis runs
+  analysisResult: PythonAnalysisResult | null; 
+  isAnalysisOpen: boolean;
   _history: {
     past: KnowledgeGraph[];
     future: KnowledgeGraph[];

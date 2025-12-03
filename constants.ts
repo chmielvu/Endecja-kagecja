@@ -1,5 +1,6 @@
 
-import { KnowledgeGraph, GraphNode, GraphEdge } from './types';
+
+import { KnowledgeGraph, GraphNode, GraphEdge, TemporalFactType, SourceCitation, RegionInfo } from './types';
 
 // Theme Constants (Must match index.html Tailwind config)
 export const THEME = {
@@ -34,17 +35,40 @@ const DATA = {
     "version": "1.3",
   },
   "nodes": [
-    // ... (Existing nodes would be here, assuming they are loaded from a seed file or API in real app)
     // For brevity in this code update, we will assume the GraphService handles the initial seed 
     // or it's loaded via the Store's Init. The DATA object in constants is mainly a fallback seed.
     // Keeping minimal valid seed for stability:
-    { "id": "dmowski_roman", "label": "Roman Dmowski", "type": "person", "dates": "1864-1939", "importance": 1.0 },
-    { "id": "liga_narodowa", "label": "Liga Narodowa", "type": "organization", "dates": "1893-1928", "importance": 1.0 },
-    { "id": "mysli_polaka", "label": "Myśli nowoczesnego Polaka", "type": "publication", "dates": "1903", "importance": 1.0 }
+    { 
+      "id": "dmowski_roman", "label": "Roman Dmowski", "type": "person", 
+      "validity": { type: 'interval', start: '1864', end: '1939' } as TemporalFactType, 
+      "importance": 1.0, "certainty": "confirmed",
+      "sources": [{ uri: "https://pl.wikipedia.org/wiki/Roman_Dmowski", label: "Wikipedia" }] as SourceCitation[]
+    },
+    { 
+      "id": "liga_narodowa", "label": "Liga Narodowa", "type": "organization", 
+      "validity": { type: 'interval', start: '1893', end: '1928' } as TemporalFactType, 
+      "importance": 1.0, "certainty": "confirmed",
+      "region": { id: 'poland', label: 'Poland', type: 'country' } as RegionInfo
+    },
+    { 
+      "id": "mysli_polaka", "label": "Myśli nowoczesnego Polaka", "type": "publication", 
+      "validity": { type: 'instant', timestamp: '1903' } as TemporalFactType, 
+      "importance": 1.0, "certainty": "confirmed"
+    }
   ],
   "edges": [
-     { "source": "dmowski_roman", "target": "liga_narodowa", "label": "założył", "dates": "1893" },
-     { "source": "dmowski_roman", "target": "mysli_polaka", "label": "napisał", "dates": "1903" }
+     { 
+       "source": "dmowski_roman", "target": "liga_narodowa", "relationType": "founded", 
+       "temporal": { type: 'instant', timestamp: '1893' } as TemporalFactType, 
+       "sources": [{ uri: "https://pl.wikipedia.org/wiki/Liga_Narodowa", label: "Wikipedia" }] as SourceCitation[],
+       "certainty": "confirmed"
+     },
+     { 
+       "source": "dmowski_roman", "target": "mysli_polaka", "relationType": "authored", 
+       "temporal": { type: 'instant', timestamp: '1903' } as TemporalFactType,
+       "sources": [{ uri: "https://pl.wikipedia.org/wiki/My%C5%9Bli_nowoczesnego_Polaka", label: "Wikipedia" }] as SourceCitation[],
+       "certainty": "confirmed"
+     }
   ]
 };
 
@@ -52,10 +76,14 @@ const mappedNodes: GraphNode[] = DATA.nodes.map(n => ({
   data: {
     id: n.id,
     label: n.label,
-    type: n.type as any,
-    dates: (n as any).dates,
-    importance: (n as any).importance || 0.5,
-    certainty: 'confirmed'
+    type: n.type, // Cast to any to bypass strictness if legacy type is still used
+    validity: n.validity,
+    importance: n.importance || 0.5,
+    // Fix: Explicitly cast certainty to the correct union type
+    certainty: n.certainty as NodeData['certainty'],
+    sources: n.sources,
+    region: n.region,
+    // TODO: Map legacy 'year'/'dates' if present in DATA to 'validity'
   }
 }));
 
@@ -64,8 +92,14 @@ const mappedEdges: GraphEdge[] = DATA.edges.map((e, i) => ({
     id: `edge_${i}`,
     source: e.source,
     target: e.target,
-    label: e.label,
-    certainty: 'confirmed'
+    // Fix: Explicitly cast relationType to the correct union type
+    relationType: e.relationType as EdgeData['relationType'],
+    temporal: e.temporal,
+    // Fix: Access certainty from the 'e' object
+    certainty: e.certainty as EdgeData['certainty'],
+    sources: e.sources,
+    sign: 'positive' // Default sign for initial edges
+    // TODO: Map legacy 'label'/'dates'/'validFrom'/'validTo' if present in DATA
   }
 }));
 
@@ -81,6 +115,8 @@ export const COLORS = {
   event: '#b45309',       // Brass
   publication: '#1e3a25', // Forest
   concept: '#57534e',     // Stone
+  document: '#9ca3af',    // Grey
+  location: '#65a30d',    // Lime Green
 };
 
 // Tier-4 Palette: Conspiratorial Grades
@@ -90,5 +126,5 @@ export const COMMUNITY_COLORS = [
   '#1e3a25', // Forest
   '#3f3f46', // Zinc
   '#78350f', // Amber-900
-  '#064e3b', // Emerald-900
+  '#064e3b', // Emerald-900',
 ];

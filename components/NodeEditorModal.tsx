@@ -1,10 +1,29 @@
+
 import React, { useState, useEffect } from 'react';
 import { useStore } from '../store';
 import { X, Save, Trash, Shield, BookOpen } from 'lucide-react';
+import { NodeType, SourceCitation, RegionInfo, TemporalFactType } from '../types';
+
+// Helper to parse temporal strings
+function parseTemporalInput(input: string): TemporalFactType | undefined {
+  if (!input) return undefined;
+  const intervalMatch = input.match(/^(\d{4})-(\d{4})$/);
+  if (intervalMatch) {
+    return { type: 'interval', start: intervalMatch[1], end: intervalMatch[2] };
+  }
+  const yearMatch = input.match(/^\d{4}$/);
+  if (yearMatch) {
+    return { type: 'instant', timestamp: input };
+  }
+  return { type: 'fuzzy', approximate: input };
+}
 
 export const NodeEditorModal: React.FC = () => {
   const { graph, editingNodeId, setEditingNode, updateNode, removeNode } = useStore();
   const [formData, setFormData] = useState<any>({});
+  const [temporalInput, setTemporalInput] = useState<string>('');
+  const [regionInput, setRegionInput] = useState<string>('');
+
 
   useEffect(() => {
     if (editingNodeId) {
@@ -12,9 +31,23 @@ export const NodeEditorModal: React.FC = () => {
       if (node) {
         setFormData({
           ...node,
-          // Convert array to string for textarea
-          sources: Array.isArray(node.sources) ? node.sources.join('\n') : (node.sources || '')
+          // Convert SourceCitation[] to string for textarea
+          sources: node.sources ? node.sources.map(s => s.uri || s.label).join('\n') : '',
         });
+        // Convert TemporalFactType to string for input
+        if (node.validity) {
+          if (node.validity.type === 'instant') setTemporalInput(node.validity.timestamp);
+          if (node.validity.type === 'interval') setTemporalInput(`${node.validity.start}-${node.validity.end}`);
+          if (node.validity.type === 'fuzzy') setTemporalInput(node.validity.approximate);
+        } else {
+          setTemporalInput('');
+        }
+        // Convert RegionInfo to string for input
+        if (node.region) {
+          setRegionInput(node.region.label || node.region.id);
+        } else {
+          setRegionInput('');
+        }
       }
     }
   }, [editingNodeId, graph]);
@@ -22,12 +55,30 @@ export const NodeEditorModal: React.FC = () => {
   if (!editingNodeId) return null;
 
   const handleSave = () => {
-    // Convert string back to array
-    const sourcesArray = typeof formData.sources === 'string'
-      ? formData.sources.split('\n').map((s: string) => s.trim()).filter((s: string) => s !== '')
-      : formData.sources;
+    // Convert string back to SourceCitation[]
+    const sourcesArray: SourceCitation[] = temporalInput ? 
+      temporalInput.split('\n').map(uri => ({ uri: uri.trim(), label: uri.trim() })) : [];
 
-    updateNode(editingNodeId, { ...formData, sources: sourcesArray });
+    // Convert string back to RegionInfo
+    const regionObj: RegionInfo | undefined = regionInput ? { 
+      id: regionInput.toLowerCase().replace(/\s/g, '_'), 
+      label: regionInput,
+      type: 'historical_region' // Default type
+    } : undefined;
+
+    // Convert string back to TemporalFactType
+    const validityObj: TemporalFactType | undefined = parseTemporalInput(temporalInput);
+
+
+    updateNode(editingNodeId, { 
+      ...formData, 
+      sources: sourcesArray,
+      region: regionObj,
+      validity: validityObj,
+      // Clear legacy fields
+      year: undefined,
+      dates: undefined
+    });
     setEditingNode(null);
   };
 
@@ -65,7 +116,7 @@ export const NodeEditorModal: React.FC = () => {
                <label className="text-xs font-bold text-zinc-500 uppercase">Type</label>
                <select 
                  value={formData.type || 'person'} 
-                 onChange={e => setFormData({...formData, type: e.target.value})}
+                 onChange={e => setFormData({...formData, type: e.target.value as NodeType})}
                  className="w-full bg-zinc-950 border border-zinc-800 rounded p-2 text-sm text-white focus:border-[#b45309] outline-none"
                >
                  <option value="person">Person</option>
@@ -73,20 +124,22 @@ export const NodeEditorModal: React.FC = () => {
                  <option value="event">Event</option>
                  <option value="concept">Concept</option>
                  <option value="publication">Publication</option>
+                 <option value="document">Document</option>
+                 <option value="location">Location</option>
                </select>
             </div>
             <div className="space-y-1">
                <label className="text-xs font-bold text-zinc-500 uppercase">Region</label>
                <input 
-                  value={formData.region || ''} 
-                  onChange={e => setFormData({...formData, region: e.target.value})}
+                  value={regionInput} 
+                  onChange={e => setRegionInput(e.target.value)}
                   className="w-full bg-zinc-950 border border-zinc-800 rounded p-2 text-sm text-white focus:border-[#b45309] outline-none"
                   placeholder="e.g. Wielkopolska"
                />
             </div>
           </div>
 
-          {/* Grid: Certainty & Dates */}
+          {/* Grid: Certainty & Validity */}
           <div className="grid grid-cols-2 gap-4">
              <div className="space-y-1">
                <label className="text-xs font-bold text-zinc-500 uppercase flex items-center gap-1">
@@ -97,20 +150,22 @@ export const NodeEditorModal: React.FC = () => {
                  onChange={e => setFormData({...formData, certainty: e.target.value})}
                  className={`w-full bg-zinc-950 border border-zinc-800 rounded p-2 text-sm focus:border-[#b45309] outline-none font-medium
                    ${formData.certainty === 'disputed' ? 'text-amber-500' : 
-                     formData.certainty === 'alleged' ? 'text-red-400' : 'text-emerald-400'}`}
+                     formData.certainty === 'alleged' ? 'text-red-400' : 
+                     formData.certainty === 'hypothesized' ? 'text-blue-400' : 'text-emerald-400'}`}
                >
                  <option value="confirmed">Confirmed</option>
                  <option value="disputed">Disputed</option>
                  <option value="alleged">Alleged</option>
+                 <option value="hypothesized">Hypothesized</option>
                </select>
             </div>
             <div className="space-y-1">
-               <label className="text-xs font-bold text-zinc-500 uppercase">Dates (ISO/Text)</label>
+               <label className="text-xs font-bold text-zinc-500 uppercase">Validity (YYYY or YYYY-YYYY)</label>
                <input 
-                  value={formData.dates || ''} 
-                  onChange={e => setFormData({...formData, dates: e.target.value})}
+                  value={temporalInput} 
+                  onChange={e => setTemporalInput(e.target.value)}
                   className="w-full bg-zinc-950 border border-zinc-800 rounded p-2 text-sm text-white focus:border-[#b45309] outline-none font-mono"
-                  placeholder="e.g. 1918-1939"
+                  placeholder="e.g. 1918-1939 or 1934"
                />
             </div>
           </div>
@@ -128,13 +183,13 @@ export const NodeEditorModal: React.FC = () => {
           {/* Sources */}
           <div className="space-y-1">
              <label className="text-xs font-bold text-zinc-500 uppercase flex items-center gap-1">
-                <BookOpen size={10} /> Sources (One per line)
+                <BookOpen size={10} /> Sources (One URL/Title per line)
              </label>
              <textarea 
                value={formData.sources || ''} 
                onChange={e => setFormData({...formData, sources: e.target.value})}
                className="w-full bg-zinc-950 border border-zinc-800 rounded p-2 text-xs font-mono text-zinc-300 h-20 focus:border-[#b45309] outline-none resize-none"
-               placeholder="Author, Title (Year)..."
+               placeholder="https://example.com/source.html&#10;Author, Title (Year)..."
              />
           </div>
 

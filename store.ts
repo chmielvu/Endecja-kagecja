@@ -1,8 +1,29 @@
 
+
+
 import { create } from 'zustand';
-import { AppState, KnowledgeGraph, NodeData, ChatMessage, Toast, RegionalAnalysisResult, DuplicateCandidate, GraphPatch, ResearchTask, GraphNode, GraphEdge, LayoutParams } from './types';
+import { 
+  AppState, 
+  KnowledgeGraph, 
+  NodeData, 
+  ChatMessage, 
+  Toast, 
+  RegionalAnalysisResult, 
+  DuplicateCandidate, 
+  GraphPatch, 
+  ResearchTask, 
+  GraphNode, 
+  GraphEdge, // Fix: Import EdgeData
+  LayoutParams, 
+  PythonAnalysisResult,
+  TemporalFactType,
+  SourceCitation,
+  RegionInfo,
+  EdgeData // Fix: Import EdgeData
+} from './types';
 import { INITIAL_GRAPH } from './constants';
 import { enrichGraphWithMetricsAsync, calculateRegionalMetrics } from './services/graphService';
+import { parseTemporalFact } from './services/geminiService'; // Fix: Import parseTemporalFact
 import { storage } from './services/storage';
 
 interface HistoryState {
@@ -15,8 +36,8 @@ interface Store extends AppState {
   loadFromStorage: () => Promise<KnowledgeGraph | null>;
   
   // Graph Mutation
-  addNodesAndEdges: (nodes: any[], edges: any[]) => void;
-  applyPatch: (nodes: Partial<NodeData>[], edges: any[]) => void;
+  addNodesAndEdges: (nodes: Partial<NodeData>[], edges: Partial<EdgeData>[]) => void;
+  applyPatch: (nodes: Partial<NodeData>[], edges: Partial<EdgeData>[]) => void;
   removeNode: (nodeId: string) => void;
   updateNode: (id: string, data: Partial<NodeData>) => void;
   mergeNodes: (keepId: string, dropId: string) => void;
@@ -62,11 +83,23 @@ interface Store extends AppState {
   
   deepeningNodeId: string | null;
   setDeepeningNode: (id: string | null) => void;
+
+  // NEW: Deep Analysis Actions
+  setAnalysisResult: (result: PythonAnalysisResult | null) => void;
+  setAnalysisOpen: (open: boolean) => void;
+}
+
+// Helper to extract a single year from TemporalFactType for filtering
+function getYearFromTemporalFact(temporal?: TemporalFactType): number | undefined {
+  if (!temporal) return undefined;
+  if (temporal.type === 'instant') return parseInt(temporal.timestamp);
+  if (temporal.type === 'interval') return parseInt(temporal.start);
+  return undefined;
 }
 
 export const useStore = create<Store>((set, get) => ({
-  graph: { nodes: [], edges: [] },
-  filteredGraph: { nodes: [], edges: [] },
+  graph: { nodes: [], edges: [], meta: {} },
+  filteredGraph: { nodes: [], edges: [], meta: {} },
   selectedNodeIds: [],
   editingNodeId: null,
   deepeningNodeId: null,
@@ -103,6 +136,9 @@ export const useStore = create<Store>((set, get) => ({
   ],
   isThinking: false,
   toasts: [],
+  // NEW: Deep Analysis State
+  analysisResult: null,
+  isAnalysisOpen: false,
   _history: { past: [], future: [] },
 
   canUndo: () => get()._history.past.length > 0,
@@ -110,6 +146,7 @@ export const useStore = create<Store>((set, get) => ({
 
   pushHistory: () => {
     const { graph, _history } = get();
+    // Use JSON deep copy to ensure immutability
     const newPast = [JSON.parse(JSON.stringify(graph)), ..._history.past].slice(0, 50);
     set({ _history: { past: newPast, future: [] } });
   },
@@ -149,7 +186,6 @@ export const useStore = create<Store>((set, get) => ({
       
       if (!stored || (stored.meta?.version !== currentVersion)) {
         console.log(`Hydrating Initial Graph. Version: ${currentVersion}`);
-        // Async metric calc
         set({ isThinking: true });
         const enriched = await enrichGraphWithMetricsAsync(INITIAL_GRAPH);
         set({ graph: enriched, filteredGraph: enriched, metricsCalculated: true, isThinking: false });
@@ -188,10 +224,24 @@ export const useStore = create<Store>((set, get) => ({
     const { graph } = get();
     try {
        const enriched = await enrichGraphWithMetricsAsync(graph);
-       set({ graph: enriched, filteredGraph: enriched, metricsCalculated: true, isThinking: false });
+       set((state) => ({ 
+         graph: enriched, 
+         filteredGraph: enriched, 
+         metricsCalculated: true, 
+         isThinking: false,
+         // Update meta with new global metrics
+         meta: {
+           ...state.graph.meta,
+           modularity: enriched.meta?.modularity, // Keep legacy if needed for old UI
+           globalMetrics: enriched.meta?.globalMetrics,
+           communityStructure: enriched.meta?.communityStructure,
+           globalBalance: enriched.meta?.globalBalance
+         }
+       }));
        storage.save(enriched);
     } catch (e) {
        console.error("Metric recalc failed", e);
+       // Ensure isThinking is set to false even on error to unblock UI
        set({ isThinking: false });
     }
   },
@@ -202,84 +252,160 @@ export const useStore = create<Store>((set, get) => ({
 
   applyPatch: async (patchNodes, patchEdges) => {
     get().pushHistory();
-    const { graph } = get();
-    set({ isThinking: true });
-
-    const existingNodeMap = new Map<string, GraphNode>(graph.nodes.map(n => [n.data.id, n]));
-    
-    patchNodes.forEach(pn => {
-      if (!pn.id) return;
-      let year = pn.year;
-      if (!year && typeof pn.dates === 'string') {
-        const match = pn.dates.match(/\d{4}/);
-        if (match && match.length > 0) year = parseInt(match[0]);
-      }
+    set((state) => {
+      // Functional update to ensure no race conditions with other state changes
+      const { graph } = state;
+      const existingNodeMap = new Map<string, GraphNode>(graph.nodes.map(n => [n.data.id, n]));
       
-      if (existingNodeMap.has(pn.id)) {
-        const existing = existingNodeMap.get(pn.id)!;
-        existingNodeMap.set(pn.id, {
-          ...existing,
-          data: { ...existing.data, ...pn, id: pn.id, year: year || existing.data.year } as NodeData
-        });
-      } else {
-        existingNodeMap.set(pn.id, {
-          data: {
-            id: pn.id,
-            label: pn.label || pn.id,
-            type: pn.type || 'concept',
-            year: year,
-            dates: pn.dates,
-            description: pn.description,
-            importance: 0.5,
-            region: pn.region || 'Unknown',
-            certainty: pn.certainty || 'confirmed'
-          } as NodeData
-        });
-      }
-    });
+      patchNodes.forEach(pn => {
+        if (!pn.id) return;
+        
+        // --- TemporalFactType parsing for NodeData.validity ---
+        let validity: TemporalFactType | undefined;
+        if (pn.validity) {
+          validity = pn.validity;
+        } else if (pn.dates) { // Fallback from old string 'dates'
+          // Fix: Ensure getYearFromTemporalFact is called on the result of parseTemporalFact
+          validity = getYearFromTemporalFact(parseTemporalFact(pn.dates)) ? parseTemporalFact(pn.dates) : undefined;
+        } else if (pn.year) { // Fallback from old 'year' number
+          validity = { type: 'instant', timestamp: String(pn.year) };
+        }
 
-    const newEdges: GraphEdge[] = patchEdges.map(e => ({
-      data: {
-        id: e.id || `edge_${Date.now()}_${Math.random().toString(36).substr(2,9)}`,
-        source: e.source,
-        target: e.target,
-        label: e.relationship || e.label || 'related',
-        dates: e.dates,
-        certainty: e.certainty || 'confirmed',
-        sign: e.sign || 'positive'
-      }
-    }));
+        // --- RegionInfo parsing ---
+        let region: RegionInfo | undefined;
+        if (pn.region && typeof pn.region === 'object' && 'id' in pn.region) {
+          region = pn.region;
+        } else if (pn.region && typeof pn.region === 'string') { // Fallback from old 'region' string
+          region = { id: pn.region.toLowerCase().replace(/\s/g, '_'), label: pn.region };
+        }
 
-    const validNewEdges = newEdges.filter(e => 
-      existingNodeMap.has(e.data.source) && existingNodeMap.has(e.data.target)
-    );
+        // --- SourceCitation parsing ---
+        let sources: SourceCitation[] | undefined;
+        if (pn.sources && Array.isArray(pn.sources) && pn.sources.every(s => typeof s === 'object' && 'uri' in s)) {
+          sources = pn.sources as SourceCitation[];
+        } else if (pn.sources && Array.isArray(pn.sources) && pn.sources.every(s => typeof s === 'string')) { // Fallback from old string[]
+          sources = (pn.sources as string[]).map(uri => ({ uri, label: uri.length > 50 ? uri.substring(0,47)+'...' : uri, type: 'website' }));
+        }
 
-    const existingEdges = graph.edges;
-    const finalEdges = [...existingEdges];
-    
-    validNewEdges.forEach(newEdge => {
-      const isDuplicate = existingEdges.some(ex => 
-        ex.data.source === newEdge.data.source && 
-        ex.data.target === newEdge.data.target && 
-        ex.data.label === newEdge.data.label
+        const newNodeData: NodeData = {
+          id: pn.id,
+          label: pn.label || pn.id,
+          type: pn.type || 'concept',
+          description: pn.description,
+          validity: validity,
+          region: region,
+          certainty: pn.certainty || 'confirmed',
+          confidenceScore: pn.confidenceScore,
+          existence: pn.existence,
+          roles: pn.roles,
+          sources: sources,
+          // Copy other metrics/props if they exist in patch, otherwise default below
+          degreeCentrality: pn.degreeCentrality, pagerank: pn.pagerank, community: pn.community,
+          louvainCommunity: pn.louvainCommunity, kCore: pn.kCore, betweenness: pn.betweenness,
+          closeness: pn.closeness, eigenvector: pn.eigenvector, clustering: pn.clustering,
+          security: pn.security, embedding: pn.embedding, parent: pn.parent,
+          // Legacy fields - these will be eventually removed
+          year: pn.year, dates: pn.dates
+        };
+        
+        if (existingNodeMap.has(pn.id)) {
+          const existing = existingNodeMap.get(pn.id)!;
+          existingNodeMap.set(pn.id, {
+            ...existing,
+            data: { ...existing.data, ...newNodeData, id: pn.id } // Merge new data with existing
+          });
+        } else {
+          existingNodeMap.set(pn.id, { data: newNodeData });
+        }
+      });
+
+      const newEdges: GraphEdge[] = patchEdges.map(pe => {
+        // --- TemporalFactType parsing for EdgeData.temporal ---
+        let temporal: TemporalFactType | undefined;
+        if (pe.temporal) {
+          temporal = pe.temporal;
+        } else if (pe.dates) { // Fallback from old string 'dates'
+          // Fix: Ensure getYearFromTemporalFact is called on the result of parseTemporalFact
+          temporal = getYearFromTemporalFact(parseTemporalFact(pe.dates)) ? parseTemporalFact(pe.dates) : undefined;
+        } else if (pe.validFrom) { // Fallback from old 'validFrom' number
+          temporal = { type: 'instant', timestamp: String(pe.validFrom) };
+        }
+
+        // --- SourceCitation parsing for edges ---
+        let sources: SourceCitation[] | undefined;
+        if (pe.sources && Array.isArray(pe.sources) && pe.sources.every(s => typeof s === 'object' && 'uri' in s)) {
+          sources = pe.sources as SourceCitation[];
+        } else if (pe.sources && Array.isArray(pe.sources) && pe.sources.every(s => typeof s === 'string')) { // Fallback from old string[]
+          sources = (pe.sources as string[]).map(uri => ({ uri, label: uri.length > 50 ? uri.substring(0,47)+'...' : uri, type: 'website' }));
+        }
+
+        const newEdgeData: EdgeData = {
+          id: pe.id || `edge_${Date.now()}_${Math.random().toString(36).substr(2,9)}`,
+          source: pe.source || '',
+          target: pe.target || '',
+          relationType: pe.relationType || 'related_to', // New required field
+          label: pe.label, // Keep old label if relationType isn't enough
+          temporal: temporal,
+          sources: sources,
+          certainty: pe.certainty || 'confirmed',
+          confidenceScore: pe.confidenceScore,
+          sign: pe.sign || 'positive',
+          isBalanced: pe.isBalanced,
+          weight: pe.weight,
+          visibility: pe.visibility,
+          // Legacy fields
+          dates: pe.dates, validFrom: pe.validFrom, validTo: pe.validTo
+        };
+
+        return { data: newEdgeData };
+      });
+
+      const validNewEdges = newEdges.filter(e => 
+        existingNodeMap.has(e.data.source) && existingNodeMap.has(e.data.target)
       );
-      if (!isDuplicate) finalEdges.push(newEdge);
+
+      const existingEdges = graph.edges;
+      const finalEdges = [...existingEdges];
+      
+      validNewEdges.forEach(newEdge => {
+        const isDuplicate = existingEdges.some(ex => 
+          ex.data.source === newEdge.data.source && 
+          ex.data.target === newEdge.data.target && 
+          ex.data.relationType === newEdge.data.relationType // Compare by relationType
+        );
+        if (!isDuplicate) finalEdges.push(newEdge);
+      });
+
+      const updatedGraph: KnowledgeGraph = {
+        nodes: Array.from(existingNodeMap.values()),
+        edges: finalEdges,
+        meta: graph.meta // Preserve meta data
+      };
+      return { graph: updatedGraph, filteredGraph: updatedGraph, pendingPatch: null, isThinking: true }; // Set thinking here
     });
 
-    const updatedGraph: KnowledgeGraph = {
-      nodes: Array.from(existingNodeMap.values()),
-      edges: finalEdges
-    };
-
+    // Run async enrichment outside of set() to prevent blocking
+    const currentGraphAfterPatch = get().graph; // Get the latest graph state after the synchronous part
     try {
-        const enriched = await enrichGraphWithMetricsAsync(updatedGraph);
-        set({ graph: enriched, filteredGraph: enriched, pendingPatch: null, isThinking: false });
+        const enriched = await enrichGraphWithMetricsAsync(currentGraphAfterPatch);
+        set((state) => ({ 
+          graph: enriched, 
+          filteredGraph: enriched, 
+          isThinking: false,
+          meta: { // Update meta with new global metrics
+            ...state.graph.meta,
+            modularity: enriched.meta?.modularity, // Keep legacy if needed for old UI
+            globalMetrics: enriched.meta?.globalMetrics,
+            communityStructure: enriched.meta?.communityStructure,
+            globalBalance: enriched.meta?.globalBalance
+          }
+        }));
         storage.save(enriched);
     } catch(e) {
+        console.error("Metric enrichment failed after patch:", e);
         set({ isThinking: false });
         get().addToast({ title: 'Metric Error', description: 'Saved without full analytics.', type: 'warning' });
-        set({ graph: updatedGraph, filteredGraph: updatedGraph, pendingPatch: null });
-        storage.save(updatedGraph);
+        storage.save(currentGraphAfterPatch);
     }
   },
 
@@ -319,37 +445,40 @@ export const useStore = create<Store>((set, get) => ({
 
   mergeNodes: (keepId, dropId) => {
     get().pushHistory();
-    const { graph } = get();
-    
-    const keepNode = graph.nodes.find(n => n.data.id === keepId);
-    const dropNode = graph.nodes.find(n => n.data.id === dropId);
-    if (!keepNode || !dropNode) return;
-
-    const newData = { ...keepNode.data };
-    if ((!newData.region || newData.region === 'Unknown') && dropNode.data.region) newData.region = dropNode.data.region;
-    if (!newData.description && dropNode.data.description) newData.description = dropNode.data.description;
-    if (!newData.dates && dropNode.data.dates) {
-       newData.dates = dropNode.data.dates;
-       newData.year = dropNode.data.year;
-    }
-
-    const updatedEdges = graph.edges.map(e => {
-      let edgeData = { ...e.data };
-      if (edgeData.source === dropId) edgeData.source = keepId;
-      if (edgeData.target === dropId) edgeData.target = keepId;
-      return { data: edgeData };
-    });
-    
-    const updatedNodes = graph.nodes
-      .filter(n => n.data.id !== dropId)
-      .map(n => n.data.id === keepId ? { ...n, data: newData } : n);
+    set((state) => {
+      const { graph } = state;
       
-    const finalEdges = updatedEdges.filter(e => e.data.source !== e.data.target);
-    const newGraph = { ...graph, nodes: updatedNodes, edges: finalEdges };
-    
-    set({ graph: newGraph, filteredGraph: newGraph });
-    get().addToast({ title: 'Merged Nodes', description: `Merged ${dropNode.data.label} into ${keepNode.data.label}`, type: 'success' });
-    get().recalculateGraph();
+      const keepNode = graph.nodes.find(n => n.data.id === keepId);
+      const dropNode = graph.nodes.find(n => n.data.id === dropId);
+      if (!keepNode || !dropNode) return state;
+
+      const newData = { ...keepNode.data };
+      
+      // Merge richer data, prioritizing existing or more detailed info
+      if (!newData.region || (typeof newData.region === 'object' && !newData.region.id) && dropNode.data.region) newData.region = dropNode.data.region;
+      if (!newData.description && dropNode.data.description) newData.description = dropNode.data.description;
+      if (!newData.validity && dropNode.data.validity) newData.validity = dropNode.data.validity;
+      if (!newData.sources && dropNode.data.sources) newData.sources = dropNode.data.sources;
+      // TODO: Smarter merging of arrays like 'existence', 'roles', 'sources'
+
+      const updatedEdges = graph.edges.map(e => {
+        let edgeData = { ...e.data };
+        if (edgeData.source === dropId) edgeData.source = keepId;
+        if (edgeData.target === dropId) edgeData.target = keepId;
+        return { data: edgeData };
+      });
+      
+      const updatedNodes = graph.nodes
+        .filter(n => n.data.id !== dropId)
+        .map(n => n.data.id === keepId ? { ...n, data: newData } : n);
+        
+      const finalEdges = updatedEdges.filter(e => e.data.source !== e.data.target);
+      const newGraph = { ...graph, nodes: updatedNodes, edges: finalEdges };
+      
+      get().addToast({ title: 'Merged Nodes', description: `Merged ${dropNode.data.label} into ${keepNode.data.label}`, type: 'success' });
+      return { graph: newGraph, filteredGraph: newGraph };
+    });
+    get().recalculateGraph(); // Recalc metrics after merge
   },
 
   toggleNodeSelection: (id, multi) => {
@@ -404,4 +533,25 @@ export const useStore = create<Store>((set, get) => ({
   updateResearchTask: (id, updates) => set(state => ({ 
     activeResearchTasks: state.activeResearchTasks.map(t => t.id === id ? { ...t, ...updates } : t) 
   })),
+
+  // NEW: Deep Analysis Actions
+  setAnalysisResult: (result) => set((state) => {
+    // Update KnowledgeGraph.meta with the latest analysis results
+    const updatedGraphMeta = {
+      ...state.graph.meta,
+      globalMetrics: result?.global_metrics,
+      communityStructure: result?.community_structure,
+      keyInfluencers: result?.key_influencers,
+      strategicCommentary: result?.strategic_commentary,
+      rawAnalysisOutput: result?.raw_output,
+      lastSaved: Date.now() // Update timestamp for consistency
+    };
+
+    return { 
+      analysisResult: result, 
+      graph: { ...state.graph, meta: updatedGraphMeta },
+      filteredGraph: { ...state.filteredGraph, meta: updatedGraphMeta } // Keep filtered graph meta in sync
+    };
+  }),
+  setAnalysisOpen: (open) => set({ isAnalysisOpen: open }),
 }));

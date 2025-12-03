@@ -1,4 +1,5 @@
 
+
 import { KnowledgeGraph, RegionalAnalysisResult, DuplicateCandidate, NodeData } from '../types';
 import { getEmbeddingsBatch, cosineSimilarity } from './embeddingService';
 
@@ -134,9 +135,10 @@ export function calculateRegionalMetrics(graph: KnowledgeGraph): RegionalAnalysi
     const src = nodeMap.get(e.data.source);
     const tgt = nodeMap.get(e.data.target);
     
-    if (src?.region && tgt?.region && src.region !== 'Unknown' && tgt.region !== 'Unknown') {
+    // Fix: Access region.id for comparison and check for existence
+    if (src?.region?.id && tgt?.region?.id && src.region.id !== 'unknown' && tgt.region.id !== 'unknown') {
       totalValidEdges++;
-      if (src.region === tgt.region) sameRegionEdges++;
+      if (src.region.id === tgt.region.id) sameRegionEdges++;
     }
   });
 
@@ -145,7 +147,8 @@ export function calculateRegionalMetrics(graph: KnowledgeGraph): RegionalAnalysi
   
   nodes.forEach(n => {
     const data = n.data;
-    if (!data.region || data.region === 'Unknown') return;
+    // Fix: Access region.id for comparison and check for existence
+    if (!data.region?.id || data.region.id === 'unknown') return;
 
     const neighbors = edges
       .filter(e => e.data.source === data.id || e.data.target === data.id)
@@ -154,7 +157,8 @@ export function calculateRegionalMetrics(graph: KnowledgeGraph): RegionalAnalysi
     let differentRegionCount = 0;
     neighbors.forEach(nid => {
       const neighbor = nodeMap.get(nid);
-      if (neighbor?.region && neighbor.region !== 'Unknown' && neighbor.region !== data.region) {
+      // Fix: Access region.id for comparison and check for existence
+      if (neighbor?.region?.id && neighbor.region.id !== 'unknown' && neighbor.region.id !== data.region?.id) {
         differentRegionCount++;
       }
     });
@@ -176,8 +180,9 @@ export function calculateRegionalMetrics(graph: KnowledgeGraph): RegionalAnalysi
   // Calculate dominant region
   const regionCounts: Record<string, number> = {};
   nodes.forEach(n => {
-      if(n.data.region && n.data.region !== 'Unknown') {
-          regionCounts[n.data.region] = (regionCounts[n.data.region] || 0) + 1;
+      // Fix: Access region.id for comparison and check for existence
+      if(n.data.region?.id && n.data.region.id !== 'unknown') {
+          regionCounts[n.data.region.id] = (regionCounts[n.data.region.id] || 0) + 1;
       }
   });
   
