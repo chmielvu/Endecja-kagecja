@@ -53,7 +53,7 @@ export const GraphCanvas: React.FC = () => {
         type: 'deepening',
         target: node.label,
         status: 'running',
-        reasoning: 'Interrogating archives...'
+        reasoning: 'Querying historical database for entity expansion...'
     });
 
     try {
@@ -61,7 +61,7 @@ export const GraphCanvas: React.FC = () => {
       setPendingPatch(result); // Pass the full GraphPatch
       updateResearchTask(taskId, { status: 'complete', reasoning: result.reasoning });
     } catch (e) {
-      addToast({ title: 'Błąd Archiwum', description: 'Intelligence gathering failed.', type: 'error' });
+      addToast({ title: 'Database Error', description: 'Node deepening failed.', type: 'error' });
       updateResearchTask(taskId, { status: 'failed', reasoning: 'Query failed.' });
     } finally {
       setDeepeningNode(null);
@@ -276,10 +276,10 @@ export const GraphCanvas: React.FC = () => {
         cy.nodes().forEach(node => {
             const data = node.data();
             
-            // Security Mode: High Risk = Glowing Red Border
+            // Network Vulnerability Mode: High Vulnerability = Glowing Red Border
             if (isSecurityMode) {
-                const risk = data.security?.risk || 0;
-                if (risk > 0.5) {
+                const vulnerabilityScore = data.networkHealth?.vulnerabilityScore || 0; // Updated from risk
+                if (vulnerabilityScore > 0.5) {
                     node.style('border-color', THEME.colors.crimson); // Deco Crimson
                     node.style('border-width', 4);
                 } else {

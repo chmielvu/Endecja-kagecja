@@ -1,10 +1,9 @@
 
-
 import { THEME } from '../constants';
 
 /**
- * Generates a Data URI SVG for a node background representing military rank.
- * Based on the OWP/SN rank insignia style (Bars and Chevrons).
+ * Generates a Data URI SVG for a node background representing hierarchical rank.
+ * Based on historical organizational influence style (Bars and Chevrons).
  */
 export const getRankInsigniaSVG = (rank: number = 0, type: string): string => {
   const width = 60 + (rank * 100);
@@ -22,11 +21,11 @@ export const getRankInsigniaSVG = (rank: number = 0, type: string): string => {
   const detailColor = THEME.colors.parchment; // Deco Paper for finer details
 
   // Determine Rank Level
-  // 0.0 - 0.2: Private (Plain)
-  // 0.2 - 0.4: Corporal (1 Bar)
-  // 0.4 - 0.6: Sergeant (2 Bars)
-  // 0.6 - 0.8: Lieutenant (3 Bars)
-  // 0.8 - 1.0: Captain/General (Chevron + Bars)
+  // 0.0 - 0.2: Minimal Influence (Plain)
+  // 0.2 - 0.4: Minor Contributor (1 Bar)
+  // 0.4 - 0.6: Key Member (2 Bars)
+  // 0.6 - 0.8: Leader (3 Bars)
+  // 0.8 - 1.0: Principal Figure (Chevron + Bars)
   
   let shapes = '';
   

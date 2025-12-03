@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { useStore } from '../store';
 import { BrainCircuit, X, Loader2, CheckCircle2, XCircle } from 'lucide-react';
@@ -11,7 +12,7 @@ export const ResearchDashboard: React.FC = () => {
   return (
     <div className="fixed bottom-4 left-1/2 transform -translate-x-1/2 z-40 w-full max-w-lg pointer-events-none">
       <BakeliteCard 
-        title="Active Agents" 
+        title="Active Processes" 
         icon={<BrainCircuit size={16} className="text-deco-green" />}
         className="!bg-deco-panel/90 rounded-lg !border !border-deco-gold/30 !shadow-2xl backdrop-blur-md"
         headerClassName="!p-2 !border-b !border-deco-gold/20 !bg-deco-panel/90"

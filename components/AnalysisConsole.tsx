@@ -1,3 +1,4 @@
+
 // path: src/components/AnalysisConsole.tsx
 import React from 'react';
 import { useStore } from '../store';
@@ -15,7 +16,7 @@ export const AnalysisConsole: React.FC = () => {
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in duration-200">
       <BakeliteCard
-        title="Sztab Generalny :: Intelligence"
+        title="NetworkX Analysis Report"
         icon={<Terminal size={20} />}
         className="w-full max-w-4xl max-h-[90vh] flex flex-col"
         headerClassName="!bg-deco-panel/90 !rounded-t-lg"
@@ -56,7 +57,7 @@ export const AnalysisConsole: React.FC = () => {
             {/* Key Figures Column */}
             <BakeliteCard className="p-4" chamfered={false}>
               <h3 className="text-xs font-bold text-deco-gold uppercase mb-4 flex items-center gap-2">
-                <Cpu size={14}/> Centers of Gravity (PageRank)
+                <Cpu size={14}/> Influence Leaders (PageRank)
               </h3>
               <div className="space-y-3">
                 {key_influencers.map((inf, i) => (

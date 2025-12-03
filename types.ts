@@ -69,13 +69,13 @@ export interface NodeData {
   eigenvector?: number;
   clustering?: number; // Local Clustering Coefficient
 
-  // --- Clandestine / Security Metrics --- 
-  security?: {
+  // --- Network Health Metrics (formerly Clandestine / Security) --- 
+  networkHealth?: { // Renamed from 'security'
     efficiency: number; // Speed of info spread (Closeness)
     safety: number; // Isolation from paths (1 - Betweenness)
     balance: number; // Harmonic mean of Efficiency & Safety
-    risk: number; // Infiltration risk score
-    vulnerabilities: string[];
+    vulnerabilityScore: number; // Renamed from 'risk'
+    identifiedIssues: string[]; // Renamed from 'vulnerabilities'
   };
 
   // --- Research Metadata ---
@@ -262,7 +262,7 @@ export interface AppState {
   metricsCalculated: boolean; // Will now reflect successful update of KnowledgeGraph.meta
   activeCommunityColoring: boolean;
   showCertainty: boolean;
-  isSecurityMode: boolean;
+  isSecurityMode: boolean; // Renamed from isClandestineMode
   isGroupedByRegion: boolean;
   activeLayout: string;
   layoutParams: LayoutParams;

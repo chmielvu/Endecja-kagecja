@@ -1,3 +1,4 @@
+
 import React, { useEffect } from 'react';
 import { SidebarLeft } from './components/SidebarLeft';
 import { SidebarRight } from './components/SidebarRight';
@@ -16,7 +17,7 @@ import { X, CheckCircle, AlertCircle, Info, PanelLeftOpen, PanelRightOpen, Termi
 import { cn } from './services/utils'; // Assuming cn utility
 
 function App() {
-  const { initGraph, toasts, removeToast, toggleSidebar, isSidebarOpen, isRightSidebarOpen, toggleRightSidebar } = useStore();
+  const { initGraph, toasts, removeToast, toggleSidebar, isSidebarOpen, isRightSidebarOpen, toggleRightSidebar, isAnalysisOpen } = useStore(); // isAnalysisOpen added
 
   useEffect(() => {
     initGraph();
@@ -66,7 +67,7 @@ function App() {
       <SemanticSearch />
       <PatchReviewModal />
       <ResearchDashboard />
-      <AnalysisConsole /> {/* NEW COMPONENT */}
+      {isAnalysisOpen && <AnalysisConsole />} {/* Render AnalysisConsole if open */}
 
       {/* DEMO BakeliteCard - Remove in production */}
       {/*

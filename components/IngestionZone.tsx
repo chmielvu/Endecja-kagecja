@@ -1,7 +1,6 @@
 
-
-
-import React, { useCallback, useState } from 'react';
+import * as React from 'react';
+import { useCallback, useState } from 'react';
 import { useStore } from '../store';
 import { analyzeDocument } from '../services/geminiService';
 import { FileDown, FileText, Loader2, AlertCircle } from 'lucide-react';
@@ -28,6 +27,7 @@ export const IngestionZone: React.FC = () => {
     }
 
     setIsProcessing(true);
+    // Fix: Changed React.Date.now() to Date.now()
     const taskId = Date.now().toString();
     addResearchTask({ 
         id: taskId, 
@@ -46,7 +46,7 @@ export const IngestionZone: React.FC = () => {
         edges: result.edges // Fix: Access correct property
       });
       updateResearchTask(taskId, { status: 'complete', reasoning: result.reasoning });
-      addToast({ title: 'Document Decoded', description: 'Entities extracted from evidence.', type: 'success' });
+      addToast({ title: 'Document Processed', description: 'Entities extracted from document.', type: 'success' });
     } catch (e) {
       updateResearchTask(taskId, { status: 'failed', reasoning: 'Ingestion failed.' });
       addToast({ title: 'Ingestion Failed', description: 'Could not read document.', type: 'error' });
@@ -81,12 +81,12 @@ export const IngestionZone: React.FC = () => {
       {isProcessing ? (
         <div className="flex flex-col items-center gap-2">
            <Loader2 className="animate-spin text-deco-gold" size={24} />
-           <span className="text-xs font-mono text-deco-paper animate-pulse">DECODING INTELLIGENCE...</span>
+           <span className="text-xs font-mono text-deco-paper animate-pulse">PROCESSING DOCUMENT...</span>
         </div>
       ) : (
         <>
           <FileDown className={`mb-2 transition-colors ${isDragging ? 'text-deco-gold' : 'text-zinc-500'}`} size={24} />
-          <h4 className="text-xs font-bold text-deco-paper uppercase font-spectral tracking-widest">Ingest Evidence</h4>
+          <h4 className="text-xs font-bold text-deco-paper uppercase font-spectral tracking-widest">Ingest Document</h4>
           <p className="text-[10px] text-zinc-500 mt-1 max-w-[150px]">
             Drop archival scans (PDF/IMG) here to extract entities via Gemini.
           </p>

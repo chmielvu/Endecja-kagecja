@@ -1,5 +1,6 @@
 
-import React, { useState, useCallback, useEffect, useRef } from 'react';
+import * as React from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { useStore } from '../store';
 import { Play, Search, Scissors, Undo2, Redo2, FileJson, PanelLeftClose, LayoutGrid, Group, Eye, Lock, Activity, Map, BrainCircuit, X, Download } from 'lucide-react';
 import { generateGraphExpansion, runDeepAnalysis } from '../services/geminiService'; // Import runDeepAnalysis
@@ -47,8 +48,9 @@ export const SidebarLeft: React.FC = () => {
     const topic = prompt("Target Topic for Expansion:");
     if (!topic) return;
     setThinking(true);
+    // Fix: Changed React.Date.now() to Date.now()
     const taskId = Date.now().toString();
-    addResearchTask({ id: taskId, type: 'expansion', target: topic, status: 'running', reasoning: 'Deploying agents...' });
+    addResearchTask({ id: taskId, type: 'expansion', target: topic, status: 'running', reasoning: 'Initiating graph expansion...' });
 
     try {
       const result = await generateGraphExpansion(graph, topic);
@@ -62,8 +64,8 @@ export const SidebarLeft: React.FC = () => {
       // Fix: Access correct property from GraphPatch
       updateResearchTask(taskId, { status: 'complete', reasoning: result.reasoning });
     } catch (e: any) {
-      addToast({ title: 'Operation Compromised', description: e.message || 'Intelligence gathering failed.', type: 'error' });
-      updateResearchTask(taskId, { status: 'failed', reasoning: 'Operation compromised.' });
+      addToast({ title: 'Operation Failed', description: e.message || 'Graph expansion failed.', type: 'error' });
+      updateResearchTask(taskId, { status: 'failed', reasoning: 'Graph expansion failed.' });
     } finally {
       setThinking(false);
     }
@@ -77,7 +79,7 @@ export const SidebarLeft: React.FC = () => {
       const result = await runDeepAnalysis(graph);
       setAnalysisResult(result);
       setAnalysisOpen(true);
-      addToast({ title: 'Intelligence Received', description: 'Deep structural analysis complete.', type: 'success' });
+      addToast({ title: 'Analysis Complete', description: 'Deep structural analysis complete.', type: 'success' });
     } catch (e: any) {
       addToast({ title: 'Connection Failed', description: e.message, type: 'error' });
     } finally {
@@ -141,15 +143,15 @@ export const SidebarLeft: React.FC = () => {
         <div className="space-y-8">
           
           {/* Ingestion Zone */}
-          <BakeliteCard title="Document Intelligence" icon={<FileJson size={16}/>} bodyClassName="!p-0" className="!bg-transparent !border-none !shadow-none !clip-none">
+          <BakeliteCard title="Document Ingestion" icon={<FileJson size={16}/>} bodyClassName="!p-0" className="!bg-transparent !border-none !shadow-none !clip-none">
              <IngestionZone />
           </BakeliteCard>
 
           {/* Operations */}
-          <BakeliteCard title="Field Operations" icon={<Activity size={16}/>} className="!bg-transparent !border-none !shadow-none !clip-none">
+          <BakeliteCard title="Graph Operations" icon={<Activity size={16}/>} className="!bg-transparent !border-none !shadow-none !clip-none">
             <div className="grid grid-cols-2 gap-2">
                <BakeliteButton onClick={handleExpand} icon={<Search size={18}/>} className="flex-col h-16 gap-1">
-                  <span className="text-[10px]">Expand Context</span>
+                  <span className="text-[10px]">Expand Graph</span>
                </BakeliteButton>
                <BakeliteButton onClick={() => recalculateGraph()} icon={<Activity size={18}/>} className="flex-col h-16 gap-1">
                   <span className="text-[10px]">Update Metrics</span>
@@ -160,11 +162,11 @@ export const SidebarLeft: React.FC = () => {
           {/* Archive Export */}
           <ExportControl />
 
-          {/* Intelligence & Hygiene */}
-          <BakeliteCard title="Intelligence & Hygiene" icon={<BrainCircuit size={16} />} className="!bg-transparent !border-none !shadow-none !clip-none">
+          {/* Network & Data Management */}
+          <BakeliteCard title="Network & Data Management" icon={<BrainCircuit size={16} />} className="!bg-transparent !border-none !shadow-none !clip-none">
             <div className="grid grid-cols-1 gap-2">
                <BakeliteButton onClick={handleDeepAnalysis} icon={<BrainCircuit size={16} />}>
-                  <span className="text-xs">NetworkX Analysis (Python)</span>
+                  <span className="text-xs">NetworkX Structural Analysis</span>
                </BakeliteButton>
                <BakeliteButton onClick={handleGrooming} icon={<Scissors size={16} />}>
                   <span className="text-xs">Groom Duplicates</span>
@@ -180,7 +182,7 @@ export const SidebarLeft: React.FC = () => {
               className="justify-between"
               variant={isSecurityMode ? 'danger' : 'primary'}
             >
-               <div className="flex items-center gap-2"><Lock size={14}/> Clandestine Risk</div>
+               <div className="flex items-center gap-2"><Lock size={14}/> Network Vulnerability</div>
                <div className={`w-2 h-2 rounded-full ${isSecurityMode ? 'bg-deco-crimson' : 'bg-zinc-700'}`}></div>
             </BakeliteButton>
 
@@ -195,13 +197,10 @@ export const SidebarLeft: React.FC = () => {
             </div>
           </BakeliteCard>
 
-          {/* Selected Intelligence */}
+          {/* Selected Node Information (Removed CONFIDENTIAL tag) */}
           {selectedNodeIds.length > 0 && (
             <BakeliteCard className="!bg-deco-panel/50 !border-deco-gold/30" chamfered={false}>
-               <div className="absolute top-0 right-0 p-2">
-                  <div className="text-[9px] font-mono text-deco-gold border border-deco-gold/50 px-1 py-0.5 rounded-sm bg-deco-panel/50">CONFIDENTIAL</div>
-               </div>
-               <h3 className="font-spectral font-bold text-deco-paper text-lg">{selectedNodeIds.length} Targets Selected</h3>
+               <h3 className="font-spectral font-bold text-deco-paper text-lg">{selectedNodeIds.length} Nodes Selected</h3>
                <p className="text-xs text-zinc-400 mt-1 italic">Awaiting orders.</p>
             </BakeliteCard>
           )}

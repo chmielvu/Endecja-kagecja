@@ -36,7 +36,7 @@ export const StatsPanel: React.FC = () => {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
       <BakeliteCard 
-        title="Graph Intelligence Dashboard" 
+        title="Network Statistics Dashboard" 
         icon={<Activity className="text-deco-green" size={20} />} 
         className="w-full max-w-3xl"
         headerClassName="!bg-deco-panel !rounded-t-xl"
@@ -67,6 +67,11 @@ export const StatsPanel: React.FC = () => {
                <div className="flex justify-between border-b border-zinc-800 pb-1">
                  <span>Components</span> <span className="font-mono text-zinc-400">{numComponents}</span>
                </div>
+               {communityStructure?.largest_community_size !== undefined && communityStructure.largest_community_size > 0 && (
+                 <div className="flex justify-between border-b border-zinc-800 pb-1">
+                   <span>Largest Faction Size</span> <span className="font-mono text-zinc-400">{communityStructure.largest_community_size}</span>
+                 </div>
+               )}
              </div>
            </div>
 

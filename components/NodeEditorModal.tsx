@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useStore } from '../store';
-import { X, Save, Trash, Shield } from 'lucide-react'; // Removed BookOpen icon as it's not directly used
+import { X, Save, Trash } from 'lucide-react'; // Removed BookOpen icon as it's not directly used, removed Shield
 import { NodeType, SourceCitation, RegionInfo, TemporalFactType } from '../types';
 import { BakeliteInput } from './BakeliteInput';
 import { BakeliteButton } from './BakeliteButton';
@@ -88,12 +88,13 @@ export const NodeEditorModal: React.FC = () => {
 
     // Convert existence string back to array
     const existenceArray = existenceInput ? existenceInput.split('\n').map(line => {
+      // Fix: Corrected the access to parts[0] before calling split
       const parts = line.split(':');
       const dates = parts[0]?.split('-');
       const statusContext = parts[1]?.trim().match(/^(\w+)(?:\s*\((.*)\))?$/);
       return {
-        start: dates[0]?.trim(),
-        end: dates[1]?.trim() || undefined,
+        start: dates?.[0]?.trim(),
+        end: dates?.[1]?.trim() || undefined,
         status: (statusContext?.[1]?.trim() || 'active') as any, // Cast to any because it's a union type
         context: statusContext?.[2]?.trim() || undefined
       };
@@ -183,7 +184,7 @@ export const NodeEditorModal: React.FC = () => {
           <div className="grid grid-cols-2 gap-4">
              <div className="space-y-1">
                <label className="text-xs font-bold text-zinc-400 uppercase flex items-center gap-1">
-                 <Shield size={10} /> Certainty
+                 Certainty
                </label>
                <select 
                  value={formData.certainty || 'confirmed'} 

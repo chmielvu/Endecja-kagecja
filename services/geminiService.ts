@@ -236,11 +236,12 @@ export async function chatWithAgent(
       const result = await chat.sendMessage({ message: userMessage });
       
       // 4. RESPONSE HANDLING
-      // Did it call the function?
-      const call = result.response.functionCalls()?.[0];
+      // Fix: Access functionCalls directly from the result object
+      const call = result.functionCalls?.[0];
       
       // Did it use search grounding?
-      const groundingMetadata = result.response.candidates?.[0]?.groundingMetadata;
+      // Fix: Access candidates directly from the result object
+      const groundingMetadata = result.candidates?.[0]?.groundingMetadata;
       const sources: SourceCitation[] = groundingMetadata?.groundingChunks?.map((c: any) => ({
           uri: c.web?.uri || 'Google Search',
           label: c.web?.title || 'Web Source',
@@ -250,7 +251,7 @@ export async function chatWithAgent(
       if (call && call.name === 'propose_changes') {
           const args = call.args as any;
           return {
-              text: `[DANE OPERACYJNE PRZYGOTOWANE]\n${args.reasoning}\n\n*Oczekiwanie na zatwierdzenie zmian w grafie...*`,
+              text: `[Dane operacyjne przygotowane]\n${args.reasoning}\n\n*Oczekiwanie na zatwierdzenie zmian w grafie...*`,
               reasoning: `Użyto narzędzi: ${sources.length > 0 ? 'Google Search + ' : ''}Graph Builder.`,
               sources: sources,
               patch: { // Return the patch to the UI
@@ -275,10 +276,9 @@ export async function chatWithAgent(
 }
 
 /**
- * INGESTION PIPELINE: Analyze Documents (PDF/Images)
- * Agile Graph Architect: This function leverages Gemini's multimodal vision
- * to extract entities and relationships from unstructured historical documents.
- * It's crucial for populating the graph from primary sources.
+ * DOCUMENT INGESTION: Analyze Documents (PDF/Images)
+ * This function leverages Gemini's multimodal vision to extract entities and relationships
+ * from unstructured historical documents, populating the graph from primary sources.
  */
 export async function analyzeDocument(
   file: File,
@@ -302,17 +302,17 @@ export async function analyzeDocument(
   const mimeType = file.type;
   
   const prompt = `
-    You are an Intelligence Officer analyzing a captured archival document from the Endecja era (1893-1939).
+    Jesteś analitykiem historycznym, przetwarzającym zeskanowane dokumenty archiwalne z epoki Endecji (1893-1939).
     
-    TASK:
-    1. Extract all key entities (People, Organizations, Events, Publications, Concepts, Locations, Documents related to the file itself) and relationships.
-    2. Focus on the Endecja movement context and Polish history.
-    3. For each extracted entity, determine its 'validity' (temporal existence) as an 'instant' (e.g., "1934") or 'interval' (e.g., "1918-1939") or 'fuzzy'.
-    4. For each relationship, determine its 'temporal' context.
-    5. Provide specific 'sources' as a structured array for *each* node and edge, referencing the document.
-    6. For node 'region', if location is clear, provide structured RegionInfo.
+    ZADANIE:
+    1. Wyodrębnij wszystkie kluczowe encje (Osoby, Organizacje, Wydarzenia, Publikacje, Koncepcje, Lokacje, Dokumenty związane z samym plikiem) oraz ich relacje.
+    2. Skoncentruj się na kontekście ruchu Endecji i historii Polski.
+    3. Dla każdej wyodrębnionej encji, określ jej 'validity' (temporalne istnienie) jako 'instant' (np. "1934"), 'interval' (np. "1918-1939") lub 'fuzzy'.
+    4. Dla każdej relacji, określ jej kontekst 'temporal'.
+    5. Podaj konkretne 'źródła' jako ustrukturyzowaną tablicę dla *każdego* węzła i krawędzi, odwołując się do dokumentu.
+    6. Dla 'regionu' węzła, jeśli lokalizacja jest jasna, podaj ustrukturyzowane informacje o regionie (RegionInfo).
     
-    SCHEMA for Nodes:
+    SCHEMAT dla węzłów:
     - id: "slug_name"
     - label: "Full Name"
     - type: "person|organization|event|concept|publication|location|document"
@@ -321,14 +321,14 @@ export async function analyzeDocument(
     - region?: { id: "slug", label: "Region Name", type: "city|province|country|historical_region" }
     - sources: [{ uri: "${file.name}", label: "Document Scan", type: "archival" }]
     
-    SCHEMA for Edges:
+    SCHEMAT dla krawędzi:
     - source: "source_id"
     - target: "target_id"
     - relationType: "founded|member_of|led|published|influenced|opposed|collaborated_with|participated_in|authored|organized|related_to|supported|criticized"
     - temporal: { type: "instant"|"interval"|"fuzzy", timestamp/start/approximate: "YYYY..." }
     - sources: [{ uri: "${file.name}", label: "Document Scan", type: "archival" }]
     
-    RETURN ONLY A JSON OBJECT.
+    ZWROC TYLKO OBIEKT JSON.
     {
       "thoughtSignature": "Brief analysis of the document's significance and key takeaways.",
       "nodes": [ { id: string, label: string, type: string, description?: string, validity?: TemporalFactType, region?: RegionInfo, sources?: SourceCitation[] } ],
@@ -356,14 +356,13 @@ export async function analyzeDocument(
         reasoning: parsed.thoughtSignature || "Document analysis complete."
     };
   } catch (e) {
-      console.error("Ingestion failed:", e);
+      console.error("Document ingestion failed:", e);
       throw e;
   }
 }
 
 /**
- * Agentic Graph Expansion.
- * Agile Graph Architect: Expands the graph by searching for new entities and relationships
+ * GRAPH EXPANSION: Expands the graph by searching for new entities and relationships
  * based on a user query, ensuring historical context and source attribution.
  */
 export async function generateGraphExpansion(
@@ -374,23 +373,23 @@ export async function generateGraphExpansion(
   const contextString = await getSmartContext(currentGraph, undefined, 120, query);
 
   const prompt = `
-    You are a Historical Intelligence Agent, specializing in the Endecja movement (1893-1939).
-    Expand the knowledge graph based on the query: "${query}".
+    Jesteś analitykiem historycznym, specjalizującym się w ruchu Endecji (1893-1939).
+    Rozbuduj graf wiedzy na podstawie zapytania: "${query}".
     
-    Current Graph Context: ${contextString}
+    Obecny kontekst grafu: ${contextString}
     
-    TASK:
-    1. Identify new entities (person, organization, event, concept, publication, location) and their key relationships.
-    2. For each extracted entity, determine its 'validity' (temporal existence) as an 'instant' (e.g., "1934") or 'interval' (e.g., "1918-1939") or 'fuzzy'.
-    3. For each relationship, determine its 'temporal' context.
-    4. Provide specific 'sources' as a structured array for *each* node and edge.
-    5. For node 'region', provide structured RegionInfo if location is clear.
-    6. Prioritize historically relevant information directly related to the Endecja movement.
+    ZADANIE:
+    1. Zidentyfikuj nowe encje (osoba, organizacja, wydarzenie, koncepcja, publikacja, lokalizacja) i ich kluczowe relacje.
+    2. Dla każdej wyodrębnionej encji, określ jej 'validity' (temporalne istnienie) jako 'instant' (np. "1934"), 'interval' (np. "1918-1939") lub 'fuzzy'.
+    3. Dla każdej relacji, określ jej kontekst 'temporal'.
+    4. Podaj konkretne 'źródła' jako ustrukturyzowaną tablicę dla *każdego* węzła i krawędzi.
+    5. Dla 'regionu' węzła, podaj ustrukturyzowane informacje o regionie (RegionInfo), jeśli lokalizacja jest jasna.
+    6. Priorytetyzuj informacje historycznie istotne, bezpośrednio związane z ruchem Endecji.
     
-    TOOLS: Use Google Search to verify dates, names, relationships, and sources.
+    NARZĘDZIA: Użyj Google Search, aby zweryfikować daty, nazwy, relacje i źródła.
     
-    RETURN ONLY A JSON OBJECT.
-    SCHEMA for Nodes:
+    ZWROC TYLKO OBIEKT JSON.
+    SCHEMAT dla węzłów:
     - id: "slug_name"
     - label: "Full Name"
     - type: "person|organization|event|concept|publication|location"
@@ -399,7 +398,7 @@ export async function generateGraphExpansion(
     - region?: { id: "slug", label: "Region Name", type: "city|province|country|historical_region" }
     - sources: [{ uri: "https://...", label: "Source Title", type: "website" }]
     
-    SCHEMA for Edges:
+    SCHEMAT dla krawędzi:
     - source: "source_id"
     - target: "target_id"
     - relationType: "founded|member_of|led|published|influenced|opposed|collaborated_with|participated_in|authored|organized|related_to|supported|criticized"
@@ -431,13 +430,12 @@ export async function generateGraphExpansion(
     };
   } catch (e) {
     console.error("Graph expansion failed:", e);
-    throw new Error("Intelligence Expansion Failed: " + (e as any).message);
+    throw new Error("Graph Expansion Failed: " + (e as any).message);
   }
 }
 
 /**
- * Agentic Node Deepening.
- * Agile Graph Architect: Conducts deep research on a specific node, enriching its
+ * NODE DEEPENING: Conducts deep research on a specific node, enriching its
  * properties and discovering new relationships with full source attribution.
  */
 export async function generateNodeDeepening(
@@ -448,20 +446,20 @@ export async function generateNodeDeepening(
   const contextString = await getSmartContext(currentGraph, node, 100);
 
   const prompt = `
-    You are a Historical Intelligence Agent, specializing in the Endecja movement.
-    Conduct deep research on the entity: "${node.label}" (ID: ${node.id}, Type: ${node.type}).
+    Jesteś analitykiem historycznym, specjalizującym się w ruchu Endecji.
+    Przeprowadź dogłębne badanie encji: "${node.label}" (ID: ${node.id}, Typ: ${node.type}).
     
-    Current Graph Context (related entities): ${contextString}
+    Obecny kontekst grafu (powiązane encje): ${contextString}
     
-    TASK:
-    1. Enrich the node's existing properties (description, validity, region) with more detail and precision.
-    2. If the node is a 'person' or 'organization', discover specific 'existence' (e.g., dates of formation/dissolution) or 'roles' (for persons).
-    3. Discover specific, sourced new relationships (edges) involving this node.
-    4. Ensure all new information (properties, existence/roles, edges) is historically accurate and attributed to structured 'sources'.
+    ZADANIE:
+    1. Wzbogać istniejące właściwości węzła (opis, ważność, region) o więcej szczegółów i precyzji.
+    2. Jeśli węzeł jest 'osobą' lub 'organizacją', odkryj konkretne 'istnienie' (np. daty utworzenia/rozwiązania) lub 'role' (dla osób).
+    3. Odkryj konkretne, udokumentowane nowe relacje (krawędzie) związane z tym węzłem.
+    4. Upewnij się, że wszystkie nowe informacje (właściwości, istnienie/role, krawędzie) są historycznie dokładne i przypisane do ustrukturyzowanych 'źródeł'.
     
-    TOOLS: Use Google Search to find detailed historical information.
+    NARZĘDZIA: Użyj Google Search, aby znaleźć szczegółowe informacje historyczne.
     
-    OUTPUT SCHEMA for updatedProperties:
+    SCHEMAT WYJŚCIOWY dla updatedProperties:
     - description: "More detailed biography/context."
     - validity?: { type: "instant"|"interval"|"fuzzy", timestamp/start/approximate: "YYYY..." }
     - region?: { id: "slug", label: "Region Name", type: "city|province|country|historical_region" }
@@ -469,14 +467,14 @@ export async function generateNodeDeepening(
     - roles?: Array<{ role: string; organization?: string; start: string; end?: string; context?: string; }> (for persons)
     - sources: [{ uri: "https://...", label: "Source Title", type: "website" }]
     
-    OUTPUT SCHEMA for newEdges:
-    - source: "${node.id}" (or other ID if the deepened node is the target)
+    SCHEMAT WYJŚCIOWY dla newEdges:
+    - source: "${node.id}" (lub inny ID, jeśli pogłębiany węzeł jest celem)
     - target: "slug_of_related_entity"
     - relationType: "founded|member_of|led|published|influenced|opposed|collaborated_with|participated_in|authored|organized|related_to|supported|criticized"
     - temporal: { type: "instant"|"interval"|"fuzzy", timestamp/start/approximate: "YYYY..." }
     - sources: [{ uri: "https://...", label: "Source Title", type: "website" }]
     
-    RETURN ONLY A JSON OBJECT.
+    ZWROC TYLKO OBIEKT JSON.
     {
       "thoughtSignature": "Concise summary of research findings for ${node.label}.",
       "updatedProperties": { /* properties as per schema above */ },
@@ -503,7 +501,7 @@ export async function generateNodeDeepening(
     };
   } catch (e) {
     console.error("Node deepening failed:", e);
-    throw new Error("Intelligence Deepening Failed: " + (e as any).message);
+    throw new Error("Node Deepening Failed: " + (e as any).message);
   }
 }
 
@@ -516,8 +514,8 @@ export async function generateCommunityInsight(nodes: NodeData[], edges: EdgeDat
 
 /**
  * 🚀 NEW: Python-Powered Graph Analysis
- * Simulates a Python environment to run NetworkX algorithms on the current graph state.
- * Uses Gemini's codeExecution tool.
+ * Performs deep structural analysis of the network using Python and NetworkX.
+ * Uses Gemini's codeExecution tool to run graph algorithms.
  */
 export async function runDeepAnalysis(graph: KnowledgeGraph): Promise<PythonAnalysisResult> {
   const ai = getAiClient();
@@ -545,29 +543,29 @@ export async function runDeepAnalysis(graph: KnowledgeGraph): Promise<PythonAnal
   };
 
   const prompt = `
-    You are the "Graph Intelligence Officer" for the Endecja Movement.
+    Jesteś analitykiem grafów dla Ruchu Endecji.
     
-    TASK: Perform a deep structural analysis of this network using Python and NetworkX.
+    ZADANIE: Przeprowadź dogłębną analizę strukturalną tej sieci za pomocą Pythona i NetworkX.
     
-    DATA (JSON):
+    DANE (JSON):
     ${JSON.stringify(pyGraph)}
 
-    PYTHON SCRIPT REQUIREMENTS:
-    1. Load data into a NetworkX DiGraph or Graph, considering edge 'sign' for signed networks if applicable.
-    2. Compute the following metrics:
-       - Density.
-       - Transitivity (global clustering coefficient).
-       - Check if the graph is connected (weakly connected for directed graphs) and count weakly connected components.
-       - PageRank (find top 5 influencers by ID and label).
-       - Betweenness Centrality (find top 3 influencers by ID and label, if graph size <= 500 to avoid performance issues).
-       - Louvain Communities (using \`python-louvain\` or NetworkX's community algorithms).
-       - Largest community size.
-    3. The final output MUST be a JSON string with the results.
+    WYMAGANIA DLA SKRYPTU PYTHON:
+    1. Załaduj dane do NetworkX DiGraph lub Graph, biorąc pod uwagę 'znak' krawędzi dla sieci ze znakami, jeśli ma to zastosowanie.
+    2. Oblicz następujące metryki:
+       - Gęstość.
+       - Tranzytywność (globalny współczynnik klasteryzacji).
+       - Sprawdź, czy graf jest połączony (słabo połączony dla grafów skierowanych) i policz słabo połączone składowe.
+       - PageRank (znajdź 5 najlepszych wpływowych osób po ID i etykiecie).
+       - Pośrednictwo Centralne (znajdź 3 najlepszych wpływowych osób po ID i etykiecie, jeśli rozmiar grafu <= 500, aby uniknąć problemów z wydajnością).
+       - Społeczności Louvain (używając \`python-louvain\` lub algorytmów społeczności NetworkX).
+       - Rozmiar największej społeczności.
+    3. Końcowy wynik MUSI być ciągiem JSON z wynikami.
     
-    After the code, provide a "Strategic Commentary" as Roman Dmowski (1934), interpreting these stats. 
-    Is the movement fragmented (many components)? Who controls the flow of information (high betweenness/pagerank)? How cohesive are the factions (modularity)?
+    Po kodzie, dostarcz "Komentarz Strategiczny" jako Roman Dmowski (1934), interpretując te statystyki. 
+    Czy ruch jest rozdrobniony (wiele składowych)? Kto kontroluje przepływ informacji (wysokie pośrednictwo/pagerank)? Jak spójne są frakcje (modułowość)?
     
-    RETURN JSON SCHEMA (ENSURE IT IS VALID JSON):
+    SCHEMAT ZWROTU JSON (UPEWNIJ SIĘ, ŻE JEST TO WAŻNY JSON):
     {
       "global_metrics": { "density": float, "transitivity": float, "is_connected": boolean, "number_connected_components": int },
       "community_structure": { "modularity": float, "num_communities": int, "largest_community_size": int },
@@ -575,7 +573,7 @@ export async function runDeepAnalysis(graph: KnowledgeGraph): Promise<PythonAnal
       "strategic_commentary": "String"
     }
     
-    Only output the Python script and then the JSON output, followed by the strategic commentary.
+    Wyprowadź tylko skrypt Python, a następnie wynik JSON, po którym następuje komentarz strategiczny.
   `;
 
   try {
@@ -589,18 +587,28 @@ export async function runDeepAnalysis(graph: KnowledgeGraph): Promise<PythonAnal
 
     const text = response.text || "{}";
     
-    // Extract JSON from potential markdown blocks, prioritizing the schema output
-    let jsonStr = text;
-    const jsonMatch = text.match(/```json\s*(\{[\s\S]*?\})\s*```/);
-    if (jsonMatch && jsonMatch[1]) {
-      jsonStr = jsonMatch[1];
-    } else {
-      // Fallback if not wrapped in markdown
-      const directJsonMatch = text.match(/\{[\s\S]*"global_metrics"[\s\S]*\}/);
-      if (directJsonMatch) jsonStr = directJsonMatch[0];
-    }
+    // Enhanced JSON extraction regex to handle Python 'print' noise
+    const jsonMatch = text.match(/\{[\s\S]*"global_metrics"[\s\S]*\}/);
+    let jsonStr = jsonMatch ? jsonMatch[0] : text;
+    
+    // Sanitize common Python bool/None to JSON
+    jsonStr = jsonStr.replace(/True/g, 'true').replace(/False/g, 'false').replace(/None/g, 'null');
 
-    const result = JSON.parse(jsonStr);
+    let result;
+    try {
+        result = JSON.parse(jsonStr);
+    } catch (e) {
+        console.warn("JSON Parse failed, attempting fallback repair", e);
+        // Fallback: If strict parse fails, return partial/empty to prevent app crash
+        return {
+            timestamp: Date.now(),
+            global_metrics: { density: 0, transitivity: 0, is_connected: false, number_connected_components: 0 },
+            community_structure: { modularity: 0, num_communities: 0, largest_community_size: 0 },
+            key_influencers: [],
+            strategic_commentary: "Analysis output parsing failed. Check raw output.",
+            raw_output: text
+        };
+    }
     
     return {
       timestamp: Date.now(),
@@ -613,6 +621,6 @@ export async function runDeepAnalysis(graph: KnowledgeGraph): Promise<PythonAnal
 
   } catch (e) {
     console.error("Deep Analysis Failed", e);
-    throw new Error("Intelligence Gathering Failed: " + (e as any).message);
+    throw new Error("Deep Analysis Failed: " + (e as any).message);
   }
 }

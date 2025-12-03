@@ -123,7 +123,7 @@ function enrichGraphWithMetrics(graph: KnowledgeGraph, timelineYear: number | nu
                 ...node.data,
                 degreeCentrality: 0, pagerank: 0, betweenness: 0, closeness: 0, clustering: 0,
                 louvainCommunity: -1, // Indicate not part of active community
-                security: { efficiency: 0, safety: 0, balance: 0, risk: 0, vulnerabilities: [] }
+                networkHealth: { efficiency: 0, safety: 0, balance: 0, vulnerabilityScore: 0, identifiedIssues: [] } // Updated from security
             }
         };
     }
@@ -143,17 +143,17 @@ function enrichGraphWithMetrics(graph: KnowledgeGraph, timelineYear: number | nu
         // Prefer existing community if Louvain didn't run for this node
         const communityId = comm[node.data.id] !== undefined ? comm[node.data.id] : (node.data.louvainCommunity || 0);
 
-        // Security Analytics
+        // Network Health Analytics (formerly Security Analytics)
         const safety = 1 - (betweennessVal > 0 ? (betweennessVal / (cy.nodes().length * cy.nodes().length)) : 0); // Normalized safety
         const efficiency = closenessVal;
         const balance = (safety + efficiency) > 0 ? (2 * safety * efficiency) / (safety + efficiency) : 0;
 
-        let risk = 0;
-        const vulnerabilities: string[] = [];
+        let vulnerabilityScore = 0; // Updated from risk
+        const identifiedIssues: string[] = []; // Updated from vulnerabilities
         
         if (betweennessVal > 0.1) {
-            vulnerabilities.push('Critical information broker');
-            risk += 0.3;
+            identifiedIssues.push('Critical information broker');
+            vulnerabilityScore += 0.3;
         }
 
         const edges = processedEdges.filter(e => e.data.source === node.data.id || e.data.target === node.data.id);
@@ -165,8 +165,8 @@ function enrichGraphWithMetrics(graph: KnowledgeGraph, timelineYear: number | nu
         }).length;
         
         if (crossRegional > 3) {
-            vulnerabilities.push('High cross-regional exposure');
-            risk += 0.2;
+            identifiedIssues.push('High cross-regional exposure');
+            vulnerabilityScore += 0.2;
         }
 
         return {
@@ -183,12 +183,12 @@ function enrichGraphWithMetrics(graph: KnowledgeGraph, timelineYear: number | nu
             louvainCommunity: communityId,
             kCore: Math.floor(degree * 10),
             
-            security: {
+            networkHealth: { // Updated from security
                 efficiency: parseFloat(efficiency.toFixed(4)),
                 safety: parseFloat(safety.toFixed(4)),
                 balance: parseFloat(balance.toFixed(4)),
-                risk: Math.min(risk, 1.0),
-                vulnerabilities
+                vulnerabilityScore: Math.min(vulnerabilityScore, 1.0), // Updated from risk
+                identifiedIssues: identifiedIssues // Updated from vulnerabilities
             }
           }
         };

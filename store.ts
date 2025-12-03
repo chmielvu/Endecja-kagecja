@@ -106,7 +106,7 @@ export const useStore = create<Store>((set, get) => ({
   metricsCalculated: false,
   activeCommunityColoring: true,
   showCertainty: false,
-  isSecurityMode: false,
+  isSecurityMode: false, // Renamed from isClandestineMode
   isGroupedByRegion: false,
   activeLayout: 'grid', 
   layoutParams: { 
@@ -144,8 +144,22 @@ export const useStore = create<Store>((set, get) => ({
 
   pushHistory: () => {
     const { graph, _history } = get();
-    // Use JSON deep copy to ensure immutability
-    const newPast = [JSON.parse(JSON.stringify(graph)), ..._history.past].slice(0, 50);
+    
+    // LIMITATION: Deep copy is expensive. 
+    // Optimization 1: Cap history size strictly (e.g., 10 steps).
+    // Optimization 2: Check if graph actually changed (hash/timestamp) before pushing.
+    
+    if (_history.past.length > 0) {
+        const lastSaved = _history.past[0];
+        if (lastSaved.nodes.length === graph.nodes.length && lastSaved.edges.length === graph.edges.length) {
+            // Shallow check optimization: If counts match, verify meta timestamp or assume similar to avoid dupes
+            if (lastSaved.meta?.lastSaved === graph.meta?.lastSaved) return; 
+        }
+    }
+
+    // Still using JSON parse/stringify for safety without Immer, 
+    // but capping at 15 to reduce memory pressure.
+    const newPast = [JSON.parse(JSON.stringify(graph)), ..._history.past].slice(0, 15);
     set({ _history: { past: newPast, future: [] } });
   },
 
@@ -300,7 +314,7 @@ export const useStore = create<Store>((set, get) => ({
           degreeCentrality: pn.degreeCentrality, pagerank: pn.pagerank, community: pn.community,
           louvainCommunity: pn.louvainCommunity, kCore: pn.kCore, betweenness: pn.betweenness,
           closeness: pn.closeness, eigenvector: pn.eigenvector, clustering: pn.clustering,
-          security: pn.security, embedding: pn.embedding, parent: pn.parent,
+          networkHealth: pn.networkHealth, embedding: pn.embedding, parent: pn.parent, // Updated from security
           // Legacy fields - these will be eventually removed
           year: pn.year, dates: pn.dates
         };
@@ -336,7 +350,7 @@ export const useStore = create<Store>((set, get) => ({
         }
 
         const newEdgeData: EdgeData = {
-          id: pe.id || `edge_${Date.now()}_${Math.random().toString(36).substr(2,9)}`,
+          id: pe.id || `edge_${Date.now()}_${Math.random().toString(36).substr(2,4)}`,
           source: pe.source || '',
           target: pe.target || '',
           relationType: pe.relationType || 'related_to', // New required field
@@ -476,7 +490,7 @@ export const useStore = create<Store>((set, get) => ({
       const finalEdges = updatedEdges.filter(e => e.data.source !== e.data.target);
       const newGraph = { ...graph, nodes: updatedNodes, edges: finalEdges };
       
-      get().addToast({ title: 'Merged Nodes', description: `Merged ${dropNode.data.label} into ${keepNode.data.label}`, type: 'success' });
+      get().addToast({ title: 'Merged Nodes', description: `Merged '${dropNode.data.label}' into '${keepNode.data.label}'.`, type: 'success' });
       return { graph: newGraph, filteredGraph: newGraph };
     });
     get().recalculateGraph(); // Recalc metrics after merge
