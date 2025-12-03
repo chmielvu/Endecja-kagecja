@@ -142,32 +142,135 @@ export async function chatWithAgent(
   history: ChatMessage[], 
   userMessage: string,
   graphContext: KnowledgeGraph
-): Promise<{ text: string, reasoning: string, sources?: SourceCitation[] }> { // Updated sources type
+): Promise<{ text: string, reasoning: string, sources?: SourceCitation[], patch?: GraphPatch }> {
     if (!API_KEY) throw new Error("API Key missing");
     const ai = getAiClient();
+
+    // 1. CONTEXT: Summarize the current graph ("The Eyes")
+    // We limit to top 60 nodes to save context window but give awareness
+    const graphSummary = graphContext.nodes
+        .sort((a, b) => (b.data.importance || 0) - (a.data.importance || 0))
+        .slice(0, 60)
+        .map(n => `- ${n.data.label} (${n.data.type})`)
+        .join('\n');
+
+    // 2. INSTRUCTION: The "Verify then Build" Directive
+    const systemInstruction = `
+      ${DMOWSKI_SYSTEM_INSTRUCTION}
+
+      TWOJE NARZĘDZIA (Your Tools):
+      1. Google Search: Użyj tego, aby sprawdzić daty, pełne nazwiska i fakty historyczne. Nie zgaduj.
+      2. propose_changes: Użyj tego, aby dodać nowe węzły i krawędzie do grafu.
+
+      OBECNY STAN WIEDZY (Current Graph):
+      ${graphSummary}
+
+      PROTOKÓŁ DZIAŁANIA (Operating Protocol):
+      - Jeśli użytkownik pyta o fakty -> Użyj Google Search, a potem odpowiedz.
+      - Jeśli użytkownik chce rozbudować graf -> NAJPIERW użyj Google Search, aby zweryfikować dane, a NASTĘPNIE użyj narzędzia 'propose_changes', aby stworzyć strukturę.
+      - Nie dodawaj duplikatów (sprawdź listę obecnych węzłów).
+    `;
+
+    // 3. TOOLS: Search + Function Calling ("The Hands")
+    const tools = [
+      { googleSearch: {} }, // Enable Native Search
+      {
+        functionDeclarations: [
+          {
+            name: "propose_changes",
+            description: "Propose structured additions to the Knowledge Graph.",
+            parameters: {
+              type: "OBJECT",
+              properties: {
+                reasoning: { type: "STRING", description: "Historical justification for these additions." },
+                nodes: {
+                  type: "ARRAY",
+                  items: {
+                    type: "OBJECT",
+                    properties: {
+                      id: { type: "STRING", description: "Slug ID (e.g. 'mosdorf_jan')" },
+                      label: { type: "STRING" },
+                      type: { type: "STRING", enum: ["person", "organization", "event", "publication", "concept", "location"] },
+                      description: { type: "STRING" },
+                      year: { type: "NUMBER", description: "Primary active year (for timeline)" }
+                    },
+                    required: ["id", "label", "type"]
+                  }
+                },
+                edges: {
+                  type: "ARRAY",
+                  items: {
+                    type: "OBJECT",
+                    properties: {
+                      source: { type: "STRING" },
+                      target: { type: "STRING" },
+                      relationType: { type: "STRING" },
+                      label: { type: "STRING" }
+                    },
+                    required: ["source", "target", "relationType"]
+                  }
+                }
+              },
+              required: ["nodes", "edges", "reasoning"]
+            }
+          }
+        ]
+      }
+    ];
+
     try {
-      const formattedHistory = history
-        .filter(h => h.role !== 'system')
-        .map(h => ({ 
+      const formattedHistory = history.filter(h => h.role !== 'system').map(h => ({ 
            role: h.role === 'assistant' ? 'model' : 'user', 
            parts: [{ text: h.content }] 
-        }));
+      }));
       const chat = ai.chats.create({
-         model: 'gemini-3-pro-preview',
+         model: 'gemini-3-pro-preview', // Or 'gemini-2.0-flash-exp' if latency is high
          config: {
-            systemInstruction: DMOWSKI_SYSTEM_INSTRUCTION,
-            temperature: 0.7,
+            systemInstruction,
+            temperature: 0.5, // Lower temp for factual accuracy
+            tools: tools as any
          },
          history: formattedHistory
       });
+
       const result = await chat.sendMessage({ message: userMessage });
+      
+      // 4. RESPONSE HANDLING
+      // Did it call the function?
+      const call = result.response.functionCalls()?.[0];
+      
+      // Did it use search grounding?
+      const groundingMetadata = result.response.candidates?.[0]?.groundingMetadata;
+      const sources: SourceCitation[] = groundingMetadata?.groundingChunks?.map((c: any) => ({
+          uri: c.web?.uri || 'Google Search',
+          label: c.web?.title || 'Web Source',
+          type: 'website'
+      })) || [];
+
+      if (call && call.name === 'propose_changes') {
+          const args = call.args as any;
+          return {
+              text: `[DANE OPERACYJNE PRZYGOTOWANE]\n${args.reasoning}\n\n*Oczekiwanie na zatwierdzenie zmian w grafie...*`,
+              reasoning: `Użyto narzędzi: ${sources.length > 0 ? 'Google Search + ' : ''}Graph Builder.`,
+              sources: sources,
+              patch: { // Return the patch to the UI
+                  type: 'expansion',
+                  reasoning: args.reasoning,
+                  nodes: args.nodes || [],
+                  edges: args.edges || []
+              }
+          };
+      }
+
       return { 
         text: result.text || "...", 
-        reasoning: "Analiza geopolityczna...", 
-        sources: [] 
+        reasoning: sources.length > 0 ? "Weryfikacja danych w Google Search..." : "Analiza wewnętrzna...", 
+        sources: sources 
       };
+
     } catch (e: any) {
-      return { text: `Błąd: ${e.message}`, reasoning: "" };
+      console.error("Agent Error", e);
+      return { text: `Przepraszam, nastąpił błąd łączności: ${e.message}`, reasoning: "" };
     }
 }
 

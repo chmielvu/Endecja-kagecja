@@ -224,6 +224,7 @@ export const SidebarLeft: React.FC = () => {
               <p className="text-sm text-zinc-400 mb-4 font-spectral italic">Review and merge redundant entities to cleanse the archives.</p>
               
               <div className="max-h-[60vh] overflow-y-auto space-y-3 pr-2">
+                 {/* Fix: Changed 'dupes.map' to 'dupeCandidates.map' */}
                  {dupeCandidates.length > 0 ? dupeCandidates.map((d, i) => (
                     <div key={i} className="flex items-center justify-between p-3 bg-deco-panel/50 rounded-none border border-deco-gold/30">
                        <div className="text-sm text-zinc-300 flex-1 min-w-0">

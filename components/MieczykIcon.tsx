@@ -1,5 +1,4 @@
 
-
 import React from 'react';
 import { THEME } from '../constants'; // Import THEME for consistent color usage
 

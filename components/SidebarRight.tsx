@@ -36,14 +36,30 @@ export const SidebarRight: React.FC = () => {
 
     try {
       const response = await chatWithAgent(messages, input, graph);
+      
       addMessage({
         id: (Date.now() + 1).toString(),
         role: 'assistant',
         content: response.text,
         reasoning: response.reasoning,
-        sources: response.sources,
+        sources: response.sources, // Now passing Google Search sources!
         timestamp: Date.now()
       });
+
+      // --- NEW: Trigger Graph Builder ---
+      if (response.patch) {
+          // Use the store action to open the modal
+          useStore.getState().setPendingPatch(response.patch);
+          
+          // Optional: Add a toast to notify user
+          useStore.getState().addToast({
+             title: "Graph Updates Proposed",
+             description: "Dmowski has drafted new entities based on research.",
+             type: "success"
+          });
+      }
+      // ----------------------------------
+
     } catch (e) {
       addMessage({
         id: (Date.now() + 1).toString(),
