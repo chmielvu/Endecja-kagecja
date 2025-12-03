@@ -4,31 +4,56 @@ import { KnowledgeGraph, GraphNode, GraphEdge, TemporalFactType, SourceCitation,
 // Theme Constants (Must match index.html Tailwind config)
 export const THEME = {
   colors: {
-    background: '#020617', // Deco Navy
-    surface: '#0f172a', // Deco Panel
-    parchment: '#fdfbf7', // Deco Paper
-    antiqueBrass: '#d4af37', // Deco Gold
-    forestUniform: '#0f172a', // Deco Panel for uniformity or specific background elements
-    crimson: '#dc143c', // Deco Crimson
-    textMain: '#fdfbf7', // Deco Paper
-    textDim: '#a3a3a3' // Lighter grey for dim text
+    background: '#0a0f0d', // Deep Forest Black (OWP vibe)
+    surface: '#141e18',    // Dark Green-Black Panel
+    parchment: '#e8e4d9',  // Sand / OWP Uniform Shirt Color
+    antiqueBrass: '#c5a059', // Tarnished Gold (Sword Hilt)
+    crimson: '#8a1c1c',    // Dried Blood / Ribbon Red
+    forestUniform: '#1e3a25', // Mieczyk Green (Ribbon background)
+    textMain: '#e8e4d9',
+    textDim: '#7a857f'     // Muted Green-Grey
   }
 };
 
 // Historical Keyframes for Timeline
 export const TIMELINE_KEYFRAMES = [
-  { year: 1893, label: 'Liga', color: '#d4af37' },
-  { year: 1897, label: 'SND', color: '#d4af37' },
-  { year: 1905, label: 'Revol.', color: '#dc143c' },
-  { year: 1918, label: 'Indep.', color: '#fdfbf7' },
-  { year: 1919, label: 'Versailles', color: '#d4af37' },
-  { year: 1926, label: 'Coup', color: '#dc143c' },
-  { year: 1933, label: 'OWP Ban', color: '#dc143c' },
-  { year: 1939, label: 'WWII', color: '#020617' }
+  { year: 1893, label: 'Liga', color: '#c5a059' },
+  { year: 1897, label: 'SND', color: '#c5a059' },
+  { year: 1905, label: 'Revol.', color: '#8a1c1c' },
+  { year: 1918, label: 'Indep.', color: '#e8e4d9' },
+  { year: 1919, label: 'Versailles', color: '#c5a059' },
+  { year: 1926, label: 'Coup', color: '#8a1c1c' },
+  { year: 1933, label: 'OWP Ban', color: '#8a1c1c' },
+  { year: 1939, label: 'WWII', color: '#0a0f0d' }
 ];
 
+// --- New interfaces for raw data to aid type inference ---
+interface RawNodeData {
+  id: string;
+  label: string;
+  type: NodeType;
+  description?: string;
+  validity?: TemporalFactType;
+  importance?: number;
+  certainty?: NodeData['certainty'];
+  sources?: SourceCitation[];
+  region?: RegionInfo;
+  existence?: NodeData['existence'];
+  roles?: NodeData['roles'];
+}
+
+interface RawEdgeData {
+  source: string;
+  target: string;
+  relationType: EdgeData['relationType'];
+  temporal?: TemporalFactType;
+  sources?: SourceCitation[];
+  certainty?: EdgeData['certainty'];
+  sign?: EdgeData['sign'];
+  label?: string; // Allow optional label for raw data
+}
 // Re-using data structure but ensuring types are consistent
-const DATA = {
+const DATA: { metadata: any; nodes: RawNodeData[]; edges: RawEdgeData[]; } = {
   "metadata": {
     "title": "Baza Wiedzy o Endecji (Narodowej Demokracji)",
     "version": "2.0", // Updated version
@@ -112,21 +137,21 @@ export const INITIAL_GRAPH: KnowledgeGraph = {
 };
 
 export const COLORS = {
-  person: '#fdfbf7',      // Deco Paper (Cream)
-  organization: '#d4af37', // Deco Gold
-  event: '#dc143c',       // Deco Crimson
-  publication: '#0f172a', // Deco Panel (Deep Navy)
-  concept: '#a3a3a3',     // Ash Grey
-  document: '#a3a3a3',    // Ash Grey
+  person: '#e8e4d9',      // Sand
+  organization: '#c5a059', // Tarnished Gold
+  event: '#8a1c1c',       // Dried Blood
+  publication: '#141e18', // Dark Green-Black Panel
+  concept: '#7a857f',     // Muted Green-Grey
+  document: '#7a857f',    // Muted Green-Grey
   location: '#34d399',    // Emerald Green (a pop of color for map entities)
 };
 
-// Art Deco Tiered Palette: Gold, Crimson, Panel, Navy, etc.
+// Mieczyk Chrobrego Tiered Palette: Tarnished Gold, Dried Blood, Dark Green-Black Panel, Deep Forest Black etc.
 export const COMMUNITY_COLORS = [
-  '#d4af37', // Deco Gold
-  '#dc143c', // Deco Crimson
-  '#0f172a', // Deco Panel
-  '#020617', // Deco Navy
-  '#e0dcd7', // Dimmer Paper
-  '#78350f', // Warm Brown
+  '#c5a059', // Tarnished Gold
+  '#8a1c1c', // Dried Blood
+  '#141e18', // Dark Green-Black Panel
+  '#0a0f0d', // Deep Forest Black
+  '#e8e4d9', // Sand
+  '#7a857f', // Muted Green-Grey
 ];

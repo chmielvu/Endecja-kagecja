@@ -1,3 +1,4 @@
+
 import React, { useState, useRef, useEffect } from 'react';
 import { useStore } from '../store';
 import { chatWithAgent } from '../services/geminiService';
@@ -5,6 +6,7 @@ import { Send, Cpu, ChevronDown, ChevronRight, MessageSquare, Scroll, PanelRight
 import { DossierPanel } from './DossierPanel';
 import { BakeliteInput } from './BakeliteInput'; // NEW IMPORT
 import { BakeliteButton } from './BakeliteButton'; // NEW IMPORT
+import { ManualCreator } from './ManualCreator'; // NEW IMPORT
 
 export const SidebarRight: React.FC = () => {
   const { messages, addMessage, isThinking, setThinking, graph, isRightSidebarOpen, toggleRightSidebar, selectedNodeIds } = useStore();
@@ -76,7 +78,7 @@ export const SidebarRight: React.FC = () => {
                   </div>
                 </div>
 
-                <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-deco-navy">
+                <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-owp-texture">
                   {messages.map((msg) => (
                     <ChatMessageItem key={msg.id} msg={msg} />
                   ))}
@@ -116,6 +118,7 @@ export const SidebarRight: React.FC = () => {
                 </div>
             </>
         )}
+        <ManualCreator />
       </div>
     </div>
   );
@@ -132,6 +135,7 @@ const ChatMessageItem: React.FC<{ msg: any }> = ({ msg }) => {
       </div>
       
       <div className={`max-w-[85%] space-y-2`}>
+        {/* Fix: Removed duplicate 'className' attribute */}
         <div className={`p-3 rounded-sm text-sm break-words whitespace-pre-wrap ${isUser ? 'bg-deco-green/10 text-deco-paper border border-deco-green/30' : 'bg-deco-panel text-deco-paper border border-deco-gold/20 font-serif'}`}>
           {msg.content}
         </div>

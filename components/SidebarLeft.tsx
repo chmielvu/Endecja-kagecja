@@ -1,12 +1,14 @@
+
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { useStore } from '../store';
-import { Play, Search, Scissors, Undo2, Redo2, FileJson, PanelLeftClose, LayoutGrid, Group, Eye, Lock, Activity, Map, BrainCircuit, X } from 'lucide-react';
+import { Play, Search, Scissors, Undo2, Redo2, FileJson, PanelLeftClose, LayoutGrid, Group, Eye, Lock, Activity, Map, BrainCircuit, X, Download } from 'lucide-react';
 import { generateGraphExpansion, runDeepAnalysis } from '../services/geminiService'; // Import runDeepAnalysis
 import { detectDuplicates } from '../services/metrics';
 import { MieczykLoader } from './MieczykLoader';
 import { IngestionZone } from './IngestionZone';
 import { BakeliteButton } from './BakeliteButton'; // NEW IMPORT
 import { BakeliteCard } from './BakeliteCard'; // NEW IMPORT for duplicate modal
+import { ExportControl } from './ExportControl'; // NEW IMPORT
 
 export const SidebarLeft: React.FC = () => {
   const { 
@@ -107,7 +109,7 @@ export const SidebarLeft: React.FC = () => {
       className={`${isSidebarOpen ? 'border-r' : 'border-r-0'} bg-deco-navy border-deco-gold/30 overflow-hidden flex-shrink-0 relative shadow-2xl z-20 transition-all duration-300`}
       style={{ width: isSidebarOpen ? sidebarWidth : 0 }}
     >
-      <div style={{ width: sidebarWidth }} className="h-full flex flex-col p-5 overflow-y-auto bg-deco-pattern">
+      <div style={{ width: sidebarWidth }} className="h-full flex flex-col p-5 overflow-y-auto bg-owp-texture">
         
         {/* Header */}
         <div className="flex items-start justify-between mb-8 border-b border-deco-gold/20 pb-4">
@@ -123,7 +125,7 @@ export const SidebarLeft: React.FC = () => {
                   <h1 className="font-spectral font-bold text-4xl text-deco-gold tracking-widest leading-none uppercase">
                     Endecja<span className="text-deco-paper">KG</span>
                   </h1>
-                  <span className="text-[10px] text-deco-green font-mono tracking-widest border border-deco-green/30 px-1 rounded bg-deco-paper/10">
+                  <span className="text-[10px] text-deco-green font-mono tracking-widest border border-deco-green/30 px-1 rounded bg-deco-panel/50">
                     HQ 1928
                   </span>
               </div>
@@ -154,6 +156,9 @@ export const SidebarLeft: React.FC = () => {
                </BakeliteButton>
             </div>
           </BakeliteCard>
+
+          {/* Archive Export */}
+          <ExportControl />
 
           {/* Intelligence & Hygiene */}
           <BakeliteCard title="Intelligence & Hygiene" icon={<BrainCircuit size={16} />} className="!bg-transparent !border-none !shadow-none !clip-none">
