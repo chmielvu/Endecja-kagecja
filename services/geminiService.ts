@@ -9,11 +9,11 @@ import {
   SourceCitation,
   RegionInfo,
   EdgeData,
-  Tool, // Import Tool type
+  Tool, 
   FunctionDeclaration,
   Type,
-  FunctionCall, // Import FunctionCall type
-  GroundingChunk // Import GroundingChunk type
+  FunctionCall,
+  GroundingChunk 
 } from "../types";
 import { getEmbedding, cosineSimilarity } from './embeddingService';
 
@@ -237,16 +237,22 @@ function cleanAndParseJSON(text: string): Record<string, unknown> {
   }
 }
 
-export async function chatWithAgent(
+export async function* chatWithAgentStream(
   history: ChatMessage[], 
   userMessage: string,
-  graphContext: KnowledgeGraph
-): Promise<{ text: string, reasoning: string, sources?: SourceCitation[], patch?: GraphPatch, toolCalls?: FunctionCall[] }> {
+  graphContext: KnowledgeGraph,
+  signal?: AbortSignal
+): AsyncGenerator<{ text?: string, patch?: GraphPatch, toolCall?: FunctionCall, sources?: SourceCitation[] }> {
     if (!API_KEY) throw new Error("API Key missing");
     const ai = getAiClient();
 
-    // 1. DYNAMIC CONTEXT: Augment system instruction with smart context based on USER QUERY
+    // Check for abort before starting potentially heavy context operations
+    if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
+
     const dynamicGraphContext = await getSmartContext(graphContext, undefined, 120, userMessage);
+    
+    if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
+
     const systemInstruction = `
       ${DMOWSKI_SYSTEM_INSTRUCTION_BASE}
 
@@ -256,12 +262,11 @@ export async function chatWithAgent(
       TWOJE NARZĘDZIA (Your Tools):
       1. Google Search: Użyj tego, aby sprawdzić daty, pełne nazwiska i fakty historyczne. Nie zgaduj.
       2. propose_changes: Użyj tego, aby dodać nowe węzły i krawędzie do grafu.
-
-      PROTOKÓŁ DZIAŁANIA (Operating Protocol):
+      
+      PROTOKÓŁ DZIAŁANIA:
       - Jeśli użytkownik pyta o fakty -> Użyj Google Search, a potem odpowiedz.
-      - Jeśli użytkownik chce rozbudować graf -> NAJPIERW użyj Google Search, aby zweryfikować dane, a NASTĘPNIE użyj narzędzia 'propose_changes', aby stworzyć strukturę.
-      - Nie dodawaj duplikatów (sprawdź listę obecnych węzłów).
       - Jeśli Google Search jest używane, zacytuj źródła.
+      - Jeśli użytkownik chce rozbudować graf -> NAJPIERW użyj Google Search, aby zweryfikować dane, a NASTĘPNIE użyj narzędzia 'propose_changes'.
     `;
 
     const tools: Tool[] = [
@@ -286,57 +291,98 @@ export async function chatWithAgent(
          history: formattedHistory
       });
 
-      const result = await chat.sendMessage({ message: userMessage });
-      const functionCalls: FunctionCall[] | undefined = result.functionCalls;
-      
-      const groundingMetadata = result.candidates?.[0]?.groundingMetadata;
-      const sources: SourceCitation[] = groundingMetadata?.groundingChunks?.map((c: GroundingChunk) => ({
-          uri: c.web?.uri || 'Google Search',
-          label: c.web?.title || 'Web Source',
-          type: 'website'
-      })) || [];
+      const resultStream = await chat.sendMessageStream({ message: userMessage });
 
-      if (functionCalls && functionCalls.length > 0 && functionCalls[0].name === 'propose_changes') {
-          const rawArgs = functionCalls[0].args as Record<string, any>;
-          const patchReasoning = rawArgs.reasoning as string;
-          const patchNodes = rawArgs.nodes as Partial<NodeData>[];
-          const patchEdges = rawArgs.edges as Partial<EdgeData>[];
+      let accumulatedText = "";
 
-          return {
-              text: `[Dane operacyjne przygotowane]\n${patchReasoning}\n\n*Oczekiwanie na zatwierdzenie zmian w grafie...*`,
-              reasoning: `Użyto narzędzi: ${sources.length > 0 ? 'Google Search + ' : ''}Graph Builder.`,
-              sources: sources,
-              patch: {
+      for await (const chunk of resultStream) {
+        if (signal?.aborted) {
+           throw new DOMException('Aborted', 'AbortError');
+        }
+
+        const text = chunk.text();
+        if (text) {
+          accumulatedText += text;
+          yield { text: text };
+        }
+        
+        // Handle Grounding (Sources)
+        const groundingMetadata = chunk.candidates?.[0]?.groundingMetadata;
+        if (groundingMetadata?.groundingChunks) {
+           const sources: SourceCitation[] = groundingMetadata.groundingChunks.map((c: GroundingChunk) => ({
+              uri: c.web?.uri || 'Google Search',
+              label: c.web?.title || 'Web Source',
+              type: 'website'
+           }));
+           if (sources.length > 0) yield { sources };
+        }
+
+        // Handle Function Calls
+        const functionCalls = chunk.functionCalls;
+        if (functionCalls && functionCalls.length > 0) {
+           const fc = functionCalls[0];
+           if (fc.name === 'propose_changes') {
+              const rawArgs = fc.args as Record<string, any>;
+              const patchReasoning = rawArgs.reasoning as string;
+              
+              const patch: GraphPatch = {
                   type: 'expansion',
                   reasoning: patchReasoning,
-                  nodes: patchNodes || [],
-                  edges: patchEdges || []
-              },
-              toolCalls: functionCalls,
-          };
+                  nodes: rawArgs.nodes as any || [],
+                  edges: rawArgs.edges as any || []
+              };
+              yield { patch, toolCall: fc };
+           }
+        }
       }
-      
-      return { 
-        text: result.text || "...", 
-        reasoning: sources.length > 0 ? "Weryfikacja danych w Google Search..." : "Analiza wewnętrzna...", 
-        sources: sources,
-        toolCalls: functionCalls,
-      };
 
     } catch (e: any) {
-      console.error("Agent Error", e);
-      return { text: `Przepraszam, nastąpił błąd łączności: ${e.message}`, reasoning: "" };
+      // Propagate abort error to caller
+      if (e.name === 'AbortError') {
+        throw e;
+      }
+      console.error("Agent Stream Error", e);
+      yield { text: `\n[Błąd połączenia: ${e.message}]` };
     }
 }
 
+// Kept for non-streaming calls (legacy or specific use cases)
+export async function chatWithAgent(
+  history: ChatMessage[], 
+  userMessage: string,
+  graphContext: KnowledgeGraph
+): Promise<{ text: string, reasoning: string, sources?: SourceCitation[], patch?: GraphPatch, toolCalls?: FunctionCall[] }> {
+    // ... existing implementation wrapper around stream or direct call
+    // For now, we will use the stream function as primary in UI
+    const generator = chatWithAgentStream(history, userMessage, graphContext);
+    let fullText = "";
+    let finalPatch: GraphPatch | undefined;
+    let finalSources: SourceCitation[] = [];
+    let finalToolCalls: FunctionCall[] = [];
+    
+    for await (const chunk of generator) {
+       if (chunk.text) fullText += chunk.text;
+       if (chunk.patch) finalPatch = chunk.patch;
+       if (chunk.sources) finalSources = chunk.sources;
+       if (chunk.toolCall) finalToolCalls.push(chunk.toolCall);
+    }
+    
+    return {
+        text: fullText,
+        reasoning: finalPatch?.reasoning || "Complete.",
+        sources: finalSources,
+        patch: finalPatch,
+        toolCalls: finalToolCalls
+    };
+}
+
+
 // ... Rest of the service functions (analyzeDocument, generateGraphExpansion, etc.) remain mostly same but assume similar 'getSmartContext' usage/improvements ...
-// For brevity in this diff, reusing existing functions but ensuring they use the shared helpers above.
 
 export async function analyzeDocument(
   file: File,
   currentGraph: KnowledgeGraph
 ): Promise<GraphPatch> {
-    // ... existing implementation ...
     const ai = getAiClient();
     const base64Data = await new Promise<string>((resolve, reject) => {
         const reader = new FileReader();
@@ -345,7 +391,6 @@ export async function analyzeDocument(
         reader.readAsDataURL(file);
     });
     const prompt = `Jesteś analitykiem historycznym... (rest of prompt)`; 
-    // ... (rest of function body - same as original file but cleanAndParseJSON is now shared)
      try {
         const response = await ai.models.generateContent({
             model: 'gemini-3-pro-preview',
@@ -365,7 +410,6 @@ export async function analyzeDocument(
 export async function generateGraphExpansion(currentGraph: KnowledgeGraph, query: string): Promise<GraphPatch> {
     const ai = getAiClient();
     const contextString = await getSmartContext(currentGraph, undefined, 120, query); // Using dynamic context
-    // ... rest of implementation similar to original ...
     const prompt = `Jesteś analitykiem historycznym... Rozbuduj graf wiedzy na podstawie: "${query}". Kontekst: ${contextString}... (rest of prompt)`;
     try {
         const response = await ai.models.generateContent({
@@ -381,7 +425,6 @@ export async function generateGraphExpansion(currentGraph: KnowledgeGraph, query
 export async function generateNodeDeepening(node: NodeData, currentGraph: KnowledgeGraph): Promise<GraphPatch> {
     const ai = getAiClient();
     const contextString = await getSmartContext(currentGraph, node, 100);
-    // ... rest of implementation ...
     const prompt = `Przeprowadź dogłębną badanie encji: "${node.label}"... Kontekst: ${contextString}... (rest of prompt)`;
     try {
         const response = await ai.models.generateContent({
@@ -407,7 +450,6 @@ export async function generateCommunityInsight(nodes: NodeData[], edges: EdgeDat
 }
 
 export async function runDeepAnalysis(graph: KnowledgeGraph): Promise<PythonAnalysisResult> {
-    // ... reusing exact logic from original file, ensuring cleanAndParseJSON is available ...
     const ai = getAiClient();
     const pyGraph = {
         nodes: graph.nodes.map(n => ({ id: n.data.id, label: n.data.label, type: n.data.type })),

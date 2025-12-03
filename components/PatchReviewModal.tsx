@@ -1,28 +1,83 @@
+
 import React, { useState, useEffect } from 'react';
 import { useStore } from '../store';
 import { X, Check, BrainCircuit, ArrowRight, GitCommit } from 'lucide-react';
-import { BakeliteCard } from './BakeliteCard'; // NEW IMPORT
-import { BakeliteButton } from './BakeliteButton'; // NEW IMPORT
+import { BakeliteCard } from './BakeliteCard';
+import { BakeliteButton } from './BakeliteButton';
+import { ConflictResolver, Conflict } from './ConflictResolver';
 
 export const PatchReviewModal: React.FC = () => {
-  const { pendingPatch, setPendingPatch, applyPatch, graph } = useStore();
+  const { pendingPatch, setPendingPatch, applyPatch, graph, updateNode } = useStore();
   const [selectedNodeIdxs, setSelectedNodeIdxs] = useState<Set<number>>(new Set());
   const [selectedEdgeIdxs, setSelectedEdgeIdxs] = useState<Set<number>>(new Set());
+  const [conflicts, setConflicts] = useState<Conflict[]>([]);
 
   // Reset selection when patch changes
   useEffect(() => {
     if (pendingPatch) {
       setSelectedNodeIdxs(new Set(pendingPatch.nodes.map((_, i) => i)));
       setSelectedEdgeIdxs(new Set(pendingPatch.edges.map((_, i) => i)));
+      setConflicts([]);
     }
   }, [pendingPatch]);
 
   if (!pendingPatch) return null;
 
-  const handleApply = () => {
+  const handleApplyClick = () => {
+    // 1. Detect Conflicts
+    const newConflicts: Conflict[] = [];
+    const nodesToApply = pendingPatch.nodes.filter((_, i) => selectedNodeIdxs.has(i));
+    
+    nodesToApply.forEach(patchNode => {
+       const existing = graph.nodes.find(n => n.data.id === patchNode.id);
+       if (existing) {
+          if (patchNode.validity && JSON.stringify(patchNode.validity) !== JSON.stringify(existing.data.validity)) {
+             newConflicts.push({ field: 'validity', existingValue: existing.data.validity, proposedValue: patchNode.validity, nodeLabel: existing.data.label });
+          }
+          if (patchNode.description && patchNode.description !== existing.data.description) {
+              newConflicts.push({ field: 'description', existingValue: existing.data.description, proposedValue: patchNode.description, nodeLabel: existing.data.label });
+          }
+       }
+    });
+
+    if (newConflicts.length > 0) {
+       setConflicts(newConflicts);
+    } else {
+       finalizeApply();
+    }
+  };
+
+  const handleConflictResolve = (resolutions: Record<string, 'existing' | 'proposed'>) => {
+     // Modifies pendingPatch content based on resolutions before applying
+     // This is a simplification; ideally we'd modify the nodesToApply array derived below
+     // For now, let's assuming patching "wins" unless resolution says 'existing'
+     // In a real app, we'd mute the specific fields in the patch object.
+     
+     // Actually, simpler: applyPatch merges. If we want to keep existing, we just remove that field from the patch node.
+     
+     const nodesToApply = pendingPatch.nodes.filter((_, i) => selectedNodeIdxs.has(i)).map(node => {
+        const newNode = { ...node };
+        const label = node.label || node.id;
+        
+        ['validity', 'description'].forEach(field => {
+             const key = `${label}-${field}`;
+             if (resolutions[key] === 'existing') {
+                 delete (newNode as any)[field];
+             }
+        });
+        return newNode;
+     });
+
+     const edgesToApply = pendingPatch.edges.filter((_, i) => selectedEdgeIdxs.has(i));
+     applyPatch(nodesToApply, edgesToApply);
+     setPendingPatch(null);
+  };
+
+  const finalizeApply = () => {
     const nodesToApply = pendingPatch.nodes.filter((_, i) => selectedNodeIdxs.has(i));
     const edgesToApply = pendingPatch.edges.filter((_, i) => selectedEdgeIdxs.has(i));
     applyPatch(nodesToApply, edgesToApply);
+    setPendingPatch(null);
   };
 
   const toggleNode = (i: number) => {
@@ -38,6 +93,24 @@ export const PatchReviewModal: React.FC = () => {
   };
 
   const existingNodeIds = new Set(graph.nodes.map(n => n.data.id));
+
+  // If resolving conflicts, show that UI instead
+  if (conflicts.length > 0) {
+      return (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+           <BakeliteCard 
+             title="Conflict Resolution" 
+             className="w-full max-w-2xl h-[80vh]"
+           >
+              <ConflictResolver 
+                 conflicts={conflicts} 
+                 onResolve={handleConflictResolve} 
+                 onCancel={() => setConflicts([])} 
+              />
+           </BakeliteCard>
+        </div>
+      );
+  }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
@@ -89,7 +162,6 @@ export const PatchReviewModal: React.FC = () => {
                         <span className="text-xs text-zinc-600 bg-deco-panel/50 px-1 py-0.5 rounded-sm border border-zinc-800">{node.type}</span>
                       </div>
                       <p className="text-xs text-zinc-500 mt-1 line-clamp-2">{node.description}</p>
-                      {node.dates && <p className="text-[10px] font-mono text-zinc-600 mt-1">{node.dates} • {node.region}</p>}
                     </div>
                   </label>
                 );
@@ -121,14 +193,10 @@ export const PatchReviewModal: React.FC = () => {
                         <ArrowRight size={12} className="text-zinc-600" />
                         <span className="font-mono text-xs text-zinc-500 truncate max-w-[80px]">{edge.target}</span>
                       </div>
-                      <div className="text-xs text-deco-gold font-bold mt-1">{edge.label || edge.relationType}</div> {/* Display relationType if label is empty */}
-                      {edge.sign === 'negative' && <div className="text-[10px] text-deco-crimson mt-0.5">Negative / Conflict</div>}
+                      <div className="text-xs text-deco-gold font-bold mt-1">{edge.label || edge.relationType}</div>
                     </div>
                  </label>
               ))}
-              {pendingPatch.edges.length === 0 && (
-                <div className="text-center text-zinc-600 text-sm py-8 italic">No new relationships proposed.</div>
-              )}
             </div>
           </div>
         </div>
@@ -139,7 +207,7 @@ export const PatchReviewModal: React.FC = () => {
             Discard All
           </BakeliteButton>
           <BakeliteButton 
-            onClick={handleApply}
+            onClick={handleApplyClick}
             disabled={selectedNodeIdxs.size === 0 && selectedEdgeIdxs.size === 0}
             variant="primary"
             icon={<GitCommit size={16} />}

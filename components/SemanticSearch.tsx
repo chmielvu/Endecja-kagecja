@@ -1,18 +1,35 @@
+
 import React, { useState } from 'react';
 import { useStore } from '../store';
-import { getEmbeddingsBatch, cosineSimilarity } from '../services/embeddingService';
-import { Search, X, Loader2, Target } from 'lucide-react';
-import { BakeliteInput } from './BakeliteInput'; // NEW IMPORT
-import { BakeliteButton } from './BakeliteButton'; // NEW IMPORT
-import { BakeliteCard } from './BakeliteCard'; // NEW IMPORT
+import { getEmbeddingsBatch } from '../services/embeddingService';
+import { vectorIndex } from '../services/vectorIndex'; // Use new service
+import { Search, X, Loader2, RefreshCw } from 'lucide-react';
+import { BakeliteInput } from './BakeliteInput';
+import { BakeliteButton } from './BakeliteButton';
+import { BakeliteCard } from './BakeliteCard';
 
 export const SemanticSearch: React.FC = () => {
-  const { isSemanticSearchOpen, setSemanticSearchOpen, graph, toggleNodeSelection } = useStore();
+  const { isSemanticSearchOpen, setSemanticSearchOpen, graph, toggleNodeSelection, addToast } = useStore();
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<any[]>([]);
   const [searching, setSearching] = useState(false);
+  const [indexing, setIndexing] = useState(false);
+  const [progress, setProgress] = useState(0);
 
   if (!isSemanticSearchOpen) return null;
+
+  const handleIndexBuild = async () => {
+    setIndexing(true);
+    setProgress(0);
+    try {
+      await vectorIndex.buildIndex(graph, (pct) => setProgress(pct));
+      addToast({ title: 'Indexing Complete', description: 'Semantic vector index updated.', type: 'success' });
+    } catch (e) {
+      addToast({ title: 'Indexing Failed', description: 'Could not update vector db.', type: 'error' });
+    } finally {
+      setIndexing(false);
+    }
+  };
 
   const handleSearch = async () => {
     if (!query.trim()) return;
@@ -27,33 +44,17 @@ export const SemanticSearch: React.FC = () => {
         return;
       }
 
-      // 2. Prepare Corpus
-      // We filter to important nodes to keep the client-side batch reasonable (avoiding 1000s of API calls)
-      // In a real backend, this would be a single DB call.
-      const corpusNodes = graph.nodes
-        .sort((a,b) => (b.data.importance || 0) - (a.data.importance || 0))
-        .slice(0, 100); // Top 100 important nodes for quick semantic check
-
-      const texts = corpusNodes.map(n => `${n.data.label}: ${n.data.description || ''}`);
+      // 2. Search Index
+      const hits = await vectorIndex.search(queryEmb, 10);
       
-      // 3. Get Batch Embeddings
-      const corpusEmbeddings = await getEmbeddingsBatch(texts, 6); // concurrency 6
+      // 3. Hydrate Results
+      const hydrated = hits.map(hit => {
+         const node = graph.nodes.find(n => n.data.id === hit.id);
+         return node ? { node, score: hit.score } : null;
+      }).filter(Boolean);
 
-      // 4. Calculate Similarities
-      const candidates = [];
-      for (let i = 0; i < corpusNodes.length; i++) {
-        const node = corpusNodes[i];
-        const nodeEmb = corpusEmbeddings[i];
-        
-        if (nodeEmb && nodeEmb.length) {
-            const score = cosineSimilarity(queryEmb, nodeEmb);
-            if (score > 0.45) { // Slightly stricter threshold
-                candidates.push({ node, score });
-            }
-        }
-      }
+      setResults(hydrated);
       
-      setResults(candidates.sort((a, b) => b.score - a.score).slice(0, 10));
     } catch (e) {
       console.error("Semantic search error", e);
     } finally {
@@ -69,12 +70,18 @@ export const SemanticSearch: React.FC = () => {
   return (
     <div className="fixed bottom-0 left-0 right-0 h-[300px] bg-deco-navy border-t border-deco-gold/30 z-50 flex flex-col shadow-[0_-10px_40px_rgba(0,0,0,0.5)] animate-in slide-in-from-bottom duration-300">
       <BakeliteCard 
-        title="Wyszukiwanie Semantyczne (Vector)" 
+        title="Wyszukiwanie Semantyczne (Persistent Vector DB)" 
         icon={<Search size={18} />} 
         className="flex-1 !bg-transparent !border-none !shadow-none !clip-none"
         headerClassName="!p-4 !border-b !border-deco-gold/20 !bg-deco-panel"
         chamfered={false}
       >
+        <div className="absolute top-4 right-14 flex items-center gap-2">
+           {indexing && <span className="text-xs font-mono text-deco-gold">{progress.toFixed(0)}%</span>}
+           <BakeliteButton onClick={handleIndexBuild} disabled={indexing} className="!p-1" title="Rebuild Index" variant="secondary">
+              <RefreshCw size={16} className={indexing ? 'animate-spin' : ''} />
+           </BakeliteButton>
+        </div>
         <button onClick={() => setSemanticSearchOpen(false)} className="absolute top-4 right-4 text-zinc-500 hover:text-deco-paper"><X size={20}/></button>
       
         <div className="p-4 flex gap-2 border-b border-deco-gold/20">
@@ -107,12 +114,13 @@ export const SemanticSearch: React.FC = () => {
            ))}
            {!searching && results.length === 0 && query && (
                <div className="col-span-full text-center text-zinc-600 py-8">
-                 {searching ? 'Przetwarzanie wektorów...' : 'Brak wyników semantycznych dla top-100 węzłów.'}
+                 {searching ? 'Przetwarzanie wektorów...' : 'Brak wyników.'}
                </div>
            )}
            {!searching && !query && (
                <div className="col-span-full text-center text-zinc-600 py-8 italic opacity-50">
-                 Wpisz zapytanie, aby przeszukać bazę wektorową...
+                 Wpisz zapytanie, aby przeszukać bazę wektorową. <br/>
+                 <span className="text-xs text-zinc-700">Pamiętaj o odświeżeniu indeksu po dużych zmianach.</span>
                </div>
            )}
         </div>

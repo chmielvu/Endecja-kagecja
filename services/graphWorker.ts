@@ -16,8 +16,8 @@ self.onmessage = (e: MessageEvent) => {
     self.postMessage({ type: 'SUCCESS', graph: enriched });
   } catch (error: any) {
     console.error("Worker Calculation Failed:", error);
-    // Return original graph to avoid app crash, but with minimal meta update
-    self.postMessage({ type: 'SUCCESS', graph: { ...graph, meta: { ...graph.meta, lastSaved: Date.now() } } });
+    // Explicitly notify main thread of error for Supervisor handling
+    self.postMessage({ type: 'ERROR', message: error.message || "Unknown worker error" });
   }
 };
 

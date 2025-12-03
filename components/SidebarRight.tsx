@@ -1,18 +1,20 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { useStore } from '../store';
-import { chatWithAgent } from '../services/geminiService';
-import { Send, Cpu, ChevronDown, ChevronRight, MessageSquare, Scroll, PanelRightClose, Search, GitCommit, ExternalLink } from 'lucide-react';
+import { chatWithAgentStream } from '../services/geminiService'; // Update import
+import { Send, Cpu, ChevronDown, ChevronRight, MessageSquare, Scroll, PanelRightClose, Search, GitCommit, ExternalLink, RefreshCw } from 'lucide-react';
 import { DossierPanel } from './DossierPanel';
 import { BakeliteInput } from './BakeliteInput';
 import { BakeliteButton } from './BakeliteButton';
 import { ManualCreator } from './ManualCreator';
-import { ChatMessage } from '../types';
+import { ChatMessage, SourceCitation, FunctionCall } from '../types';
 
 export const SidebarRight: React.FC = () => {
   const { messages, addMessage, isThinking, setThinking, graph, isRightSidebarOpen, toggleRightSidebar, selectedNodeIds } = useStore();
   const [input, setInput] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const [streamingContent, setStreamingContent] = useState(''); // New state for stream
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   const selectedNode = selectedNodeIds.length === 1 
       ? graph.nodes.find(n => n.data.id === selectedNodeIds[0])?.data 
@@ -24,31 +26,53 @@ export const SidebarRight: React.FC = () => {
 
   useEffect(() => {
      if (!selectedNode) scrollToBottom();
-  }, [messages, isThinking, selectedNode]);
+  }, [messages, isThinking, selectedNode, streamingContent]);
 
   const handleSend = async () => {
     if (!input.trim() || isThinking) return;
+
+    // Abort previous request if active
+    if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+    }
+    const abortController = new AbortController();
+    abortControllerRef.current = abortController;
 
     const userMsg = { id: Date.now().toString(), role: 'user' as const, content: input, timestamp: Date.now() };
     addMessage(userMsg);
     setInput('');
     setThinking(true);
+    setStreamingContent('');
 
     try {
-      const response = await chatWithAgent(messages, input, graph);
+      const stream = chatWithAgentStream(messages, input, graph, abortController.signal);
+      let fullText = "";
+      let accumulatedSources: SourceCitation[] = [];
+      let accumulatedToolCalls: FunctionCall[] = [];
+      let finalPatch = null;
+
+      for await (const chunk of stream) {
+         if (chunk.text) {
+             fullText += chunk.text;
+             setStreamingContent(prev => prev + chunk.text);
+         }
+         if (chunk.sources) accumulatedSources = chunk.sources;
+         if (chunk.toolCall) accumulatedToolCalls.push(chunk.toolCall);
+         if (chunk.patch) finalPatch = chunk.patch;
+      }
       
       addMessage({
         id: (Date.now() + 1).toString(),
         role: 'assistant',
-        content: response.text,
-        reasoning: response.reasoning,
-        sources: response.sources,
-        toolCalls: response.toolCalls,
+        content: fullText,
+        reasoning: finalPatch?.reasoning,
+        sources: accumulatedSources,
+        toolCalls: accumulatedToolCalls,
         timestamp: Date.now()
       });
 
-      if (response.patch) {
-          useStore.getState().setPendingPatch(response.patch);
+      if (finalPatch) {
+          useStore.getState().setPendingPatch(finalPatch);
           useStore.getState().addToast({
              title: "Graph Updates Proposed",
              description: "Dmowski has drafted new entities based on research.",
@@ -56,15 +80,29 @@ export const SidebarRight: React.FC = () => {
           });
       }
 
-    } catch (e) {
-      addMessage({
-        id: (Date.now() + 1).toString(),
-        role: 'system',
-        content: 'Error communicating with Dmowski.',
-        timestamp: Date.now()
-      });
+    } catch (e: any) {
+      if (e.name !== 'AbortError') {
+        addMessage({
+          id: (Date.now() + 1).toString(),
+          role: 'system',
+          content: 'Error communicating with Dmowski.',
+          timestamp: Date.now()
+        });
+      }
     } finally {
+      if (abortControllerRef.current === abortController) {
+          setThinking(false);
+          setStreamingContent('');
+          abortControllerRef.current = null;
+      }
+    }
+  };
+
+  const handleCancel = () => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
       setThinking(false);
+      setStreamingContent('');
     }
   };
 
@@ -91,7 +129,21 @@ export const SidebarRight: React.FC = () => {
                   {messages.map((msg) => (
                     <ChatMessageItem key={msg.id} msg={msg} />
                   ))}
-                  {isThinking && (
+                  
+                  {/* Streaming Message Placeholder */}
+                  {isThinking && streamingContent && (
+                    <div className="flex gap-3 flex-row">
+                        <div className="w-8 h-8 rounded-full flex-shrink-0 flex items-center justify-center border bg-deco-gold/10 border-deco-gold/30">
+                            <span className="font-serif font-bold text-xs text-deco-gold">RD</span>
+                        </div>
+                        <div className="max-w-[85%] bg-deco-panel text-deco-paper border border-deco-gold/20 font-serif p-3 rounded-sm text-sm break-words whitespace-pre-wrap">
+                            {streamingContent}
+                            <span className="animate-pulse inline-block w-1.5 h-3 ml-1 bg-deco-gold align-middle"></span>
+                        </div>
+                    </div>
+                  )}
+
+                  {isThinking && !streamingContent && (
                     <div className="flex gap-2 items-start animate-pulse opacity-70">
                       <div className="w-8 h-8 rounded-full bg-deco-gold/20 flex items-center justify-center border border-deco-gold/30">
                          <Cpu size={14} className="text-deco-gold" />
@@ -113,16 +165,28 @@ export const SidebarRight: React.FC = () => {
                       onKeyDown={(e) => e.key === 'Enter' && handleSend()}
                       placeholder="Zadaj pytanie Panu Romanowi..."
                       className="flex-1"
-                    />
-                    <BakeliteButton 
-                      onClick={handleSend}
                       disabled={isThinking}
-                      className="bg-deco-green hover:bg-deco-green/80 text-deco-paper p-2 rounded-sm disabled:opacity-50 border border-deco-green"
-                      icon={<Send size={16} />}
-                      variant="primary"
-                    >
-                      <span className="sr-only">Send</span>
-                    </BakeliteButton>
+                    />
+                    {isThinking ? (
+                      <BakeliteButton 
+                        onClick={handleCancel}
+                        className="bg-deco-crimson hover:bg-deco-crimson/80 text-deco-paper p-2 rounded-sm border border-deco-crimson"
+                        icon={<RefreshCw size={16} className="animate-spin" />}
+                        variant="danger"
+                        title="Cancel Request"
+                      >
+                        <span className="sr-only">Cancel</span>
+                      </BakeliteButton>
+                    ) : (
+                      <BakeliteButton 
+                        onClick={handleSend}
+                        className="bg-deco-green hover:bg-deco-green/80 text-deco-paper p-2 rounded-sm border border-deco-green"
+                        icon={<Send size={16} />}
+                        variant="primary"
+                      >
+                        <span className="sr-only">Send</span>
+                      </BakeliteButton>
+                    )}
                   </div>
                 </div>
             </>

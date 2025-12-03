@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { useStore } from '../store';
-import { X, Save, Trash, Plus, Minus, BookOpen, Clock, MapPin, GitCommit } from 'lucide-react';
+import { X, Save, Trash, Plus, Minus, BookOpen, Clock, MapPin, GitCommit, Calendar } from 'lucide-react';
 import { NodeType, SourceCitation, RegionInfo, TemporalFactType, Existence, Role, NodeData } from '../types';
 import { BakeliteInput } from './BakeliteInput';
 import { BakeliteButton } from './BakeliteButton';
@@ -14,6 +14,7 @@ interface TemporalFactTypeEditorState {
   inputStart: string;
   inputEnd: string;
   inputApproximate: string;
+  useExactDate: boolean; // Toggle between Year and Date Picker
 }
 
 function parseTemporalInput(state: TemporalFactTypeEditorState): TemporalFactType | undefined {
@@ -33,12 +34,14 @@ function parseTemporalInput(state: TemporalFactTypeEditorState): TemporalFactTyp
 }
 
 const formatTemporalFact = (temporal?: TemporalFactType): TemporalFactTypeEditorState => {
-  if (!temporal) return { type: 'instant', inputTimestamp: '', inputStart: '', inputEnd: '', inputApproximate: '' };
+  const isDate = (str: string) => str.includes('-');
+  
+  if (!temporal) return { type: 'instant', inputTimestamp: '', inputStart: '', inputEnd: '', inputApproximate: '', useExactDate: false };
   switch (temporal.type) {
-    case 'instant': return { type: 'instant', inputTimestamp: temporal.timestamp, inputStart: '', inputEnd: '', inputApproximate: '' };
-    case 'interval': return { type: 'interval', inputTimestamp: '', inputStart: temporal.start, inputEnd: temporal.end, inputApproximate: '' };
-    case 'fuzzy': return { type: 'fuzzy', inputTimestamp: '', inputStart: '', inputEnd: '', inputApproximate: temporal.approximate };
-    default: return { type: 'instant', inputTimestamp: '', inputStart: '', inputEnd: '', inputApproximate: '' };
+    case 'instant': return { type: 'instant', inputTimestamp: temporal.timestamp, inputStart: '', inputEnd: '', inputApproximate: '', useExactDate: isDate(temporal.timestamp) };
+    case 'interval': return { type: 'interval', inputTimestamp: '', inputStart: temporal.start, inputEnd: temporal.end, inputApproximate: '', useExactDate: isDate(temporal.start) };
+    case 'fuzzy': return { type: 'fuzzy', inputTimestamp: '', inputStart: '', inputEnd: '', inputApproximate: temporal.approximate, useExactDate: false };
+    default: return { type: 'instant', inputTimestamp: '', inputStart: '', inputEnd: '', inputApproximate: '', useExactDate: false };
   }
 };
 
@@ -160,19 +163,50 @@ export const NodeEditorModal: React.FC = () => {
                  <option value="hypothesized">Hypothesized</option>
                </select>
             </div>
+            
             <div className="space-y-1">
-              <label className="text-xs font-bold text-zinc-400 uppercase flex items-center gap-1"><Clock size={14}/> Validity</label>
+              <div className="flex justify-between items-center">
+                 <label className="text-xs font-bold text-zinc-400 uppercase flex items-center gap-1"><Clock size={14}/> Validity</label>
+                 <button 
+                   onClick={() => setTemporalState(p => ({ ...p, useExactDate: !p.useExactDate }))}
+                   className="text-[10px] text-deco-gold hover:underline flex items-center gap-1"
+                 >
+                   {temporalState.useExactDate ? 'Switch to Year' : 'Switch to Date'} <Calendar size={10}/>
+                 </button>
+              </div>
+
               <div className="flex flex-col gap-1">
                 <select value={temporalState.type} onChange={e => setTemporalState({ ...formatTemporalFact(), type: e.target.value as any })} className="bg-deco-panel border border-deco-gold/30 rounded-sm px-2 py-1 text-xs text-deco-paper">
                   <option value="instant">Instant</option>
                   <option value="interval">Interval</option>
                   <option value="fuzzy">Fuzzy</option>
                 </select>
-                {temporalState.type === 'instant' && <BakeliteInput value={temporalState.inputTimestamp} onChange={e => setTemporalState(prev => ({ ...prev, inputTimestamp: e.target.value }))} placeholder="YYYY-MM-DD" className="text-xs font-mono"/>}
+                
+                {temporalState.type === 'instant' && (
+                   <BakeliteInput 
+                      type={temporalState.useExactDate ? 'date' : 'text'}
+                      value={temporalState.inputTimestamp} 
+                      onChange={e => setTemporalState(prev => ({ ...prev, inputTimestamp: e.target.value }))} 
+                      placeholder="YYYY" 
+                      className="text-xs font-mono"
+                   />
+                )}
                 {temporalState.type === 'interval' && (
                   <div className="flex gap-1">
-                    <BakeliteInput value={temporalState.inputStart} onChange={e => setTemporalState(prev => ({ ...prev, inputStart: e.target.value }))} placeholder="Start" className="text-xs font-mono"/>
-                    <BakeliteInput value={temporalState.inputEnd} onChange={e => setTemporalState(prev => ({ ...prev, inputEnd: e.target.value }))} placeholder="End" className="text-xs font-mono"/>
+                    <BakeliteInput 
+                      type={temporalState.useExactDate ? 'date' : 'text'}
+                      value={temporalState.inputStart} 
+                      onChange={e => setTemporalState(prev => ({ ...prev, inputStart: e.target.value }))} 
+                      placeholder="Start" 
+                      className="text-xs font-mono"
+                    />
+                    <BakeliteInput 
+                      type={temporalState.useExactDate ? 'date' : 'text'}
+                      value={temporalState.inputEnd} 
+                      onChange={e => setTemporalState(prev => ({ ...prev, inputEnd: e.target.value }))} 
+                      placeholder="End" 
+                      className="text-xs font-mono"
+                    />
                   </div>
                 )}
                 {temporalState.type === 'fuzzy' && <BakeliteInput value={temporalState.inputApproximate} onChange={e => setTemporalState(prev => ({ ...prev, inputApproximate: e.target.value }))} placeholder="e.g. Early 20th C." className="text-xs"/>}
@@ -184,7 +218,7 @@ export const NodeEditorModal: React.FC = () => {
 
           {/* Dynamic Forms for Existence/Roles/Sources */}
           <div className="space-y-4">
-            {/* Existence History (Orgs) */}
+            {/* Existence Timeline */}
             {['organization', 'event'].includes(formData.type as string) && (
               <BakeliteCard title="Existence Timeline" icon={<Clock size={14}/>} className="!bg-deco-navy/30 !shadow-none" headerClassName="!p-2" bodyClassName="!p-2">
                  {existence.map(e => (
@@ -203,7 +237,7 @@ export const NodeEditorModal: React.FC = () => {
               </BakeliteCard>
             )}
 
-            {/* Roles (Person) */}
+            {/* Roles */}
             {formData.type === 'person' && (
               <BakeliteCard title="Roles" icon={<BookOpen size={14}/>} className="!bg-deco-navy/30 !shadow-none" headerClassName="!p-2" bodyClassName="!p-2">
                  {roles.map(r => (

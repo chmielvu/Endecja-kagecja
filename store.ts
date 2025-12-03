@@ -1,4 +1,3 @@
-
 import { create } from 'zustand';
 import { produce } from 'immer'; // Import Immer's produce function
 import { 
@@ -25,6 +24,7 @@ import { INITIAL_GRAPH } from './constants';
 import { enrichGraphWithMetricsAsync, calculateRegionalMetrics } from './services/graphService';
 import { parseTemporalFact } from './services/geminiService'; 
 import { storage } from './services/storage';
+import { NodeDataSchema, EdgeDataSchema } from './services/validation';
 
 interface HistoryState {
   past: KnowledgeGraph[];
@@ -109,6 +109,47 @@ function isExistenceArray(arr: any[]): arr is Existence[] {
 function isRoleArray(arr: any[]): arr is Role[] {
   return Array.isArray(arr) && arr.every(item => typeof item === 'object' && 'role' in item);
 }
+
+// --- Data Migration Strategy ---
+const MIGRATIONS: Record<string, (graph: any) => KnowledgeGraph> = {
+  // Migration 1.0 -> 2.0: Convert 'year'/'dates' -> 'validity', 'security' -> 'networkHealth'
+  '1.0->2.0': (old) => ({
+    ...old,
+    meta: { ...old.meta, version: '2.0' },
+    nodes: old.nodes.map((n: any) => {
+        let validity = n.data.validity;
+        // Migrate legacy year/dates
+        if (!validity) {
+             if (n.data.year) validity = { type: 'instant', timestamp: String(n.data.year) };
+             else if (n.data.dates) validity = parseTemporalFact(n.data.dates);
+        }
+
+        let networkHealth = n.data.networkHealth;
+        // Migrate legacy security
+        if (!networkHealth && n.data.security) {
+            networkHealth = {
+                efficiency: 0, 
+                safety: 1 - (n.data.security.risk || 0),
+                balance: 0,
+                vulnerabilityScore: n.data.security.risk || 0,
+                identifiedIssues: n.data.security.vulnerabilities || []
+            };
+        }
+
+        return {
+            ...n,
+            data: {
+                ...n.data,
+                validity,
+                networkHealth,
+                year: undefined, // Remove legacy
+                dates: undefined, // Remove legacy
+                security: undefined // Remove legacy
+            }
+        };
+    })
+  })
+};
 
 export const useStore = create<Store>((set, get) => ({
   graph: { nodes: [], edges: [], meta: {} },
@@ -217,22 +258,61 @@ export const useStore = create<Store>((set, get) => ({
 
   initGraph: async () => {
     try {
-      const currentVersion = INITIAL_GRAPH.meta?.version || "1.0";
+      const currentVersion = INITIAL_GRAPH.meta?.version || "2.0"; // Target version
       const stored = await get().loadFromStorage();
       
-      if (!stored || (stored.meta?.version !== currentVersion)) {
+      // Migration Logic
+      if (stored) {
+         let graph = stored;
+         let version = graph.meta?.version || "1.0"; // Default to 1.0 if missing
+
+         if (version !== currentVersion) {
+            console.log(`Detected Data Version Mismatch: ${version} -> ${currentVersion}`);
+            
+            // Check for explicit migration path
+            const migrationKey = `${version}->${currentVersion}`;
+            if (MIGRATIONS[migrationKey]) {
+                console.log(`Applying Migration: ${migrationKey}`);
+                try {
+                    graph = MIGRATIONS[migrationKey](graph);
+                    get().addToast({ title: 'System Upgrade', description: `Migrated data to v${currentVersion}.`, type: 'info' });
+                    // Save the migrated graph immediately
+                    storage.save(graph, currentVersion); 
+                } catch (e) {
+                    console.error("Migration failed:", e);
+                    get().addToast({ title: 'Migration Error', description: 'Failed to update data format. Using default.', type: 'error' });
+                    graph = INITIAL_GRAPH; // Fallback to fresh start if migration fails to prevent corruption
+                }
+            } else if (version < currentVersion) {
+                 // No direct migration found, assume incompatible or fresh start needed if major difference?
+                 // For now, let's assume we can load it but warn. Or maybe just load INITIAL if too old.
+                 // Here, we'll try to use it as is, trusting the app handles optional fields.
+                 console.warn(`No migration found for ${version}->${currentVersion}. Loading as-is.`);
+            }
+         }
+         
+         set({ isThinking: true });
+         // Re-calculate metrics to ensure all fields like networkHealth are populated correctly after load
+         try {
+             const enriched = await enrichGraphWithMetricsAsync(graph);
+             set({ graph: enriched, filteredGraph: enriched, metricsCalculated: true, isThinking: false });
+         } catch(e) {
+             console.warn("Metric recalc on init failed, loading raw.", e);
+             set({ graph: graph, filteredGraph: graph, metricsCalculated: false, isThinking: false });
+         }
+
+      } else {
+        // Fresh Install / No Data
         console.log(`Hydrating Initial Graph. Version: ${currentVersion}`);
         set({ isThinking: true });
         const enriched = await enrichGraphWithMetricsAsync(INITIAL_GRAPH);
         set({ graph: enriched, filteredGraph: enriched, metricsCalculated: true, isThinking: false });
         get().addToast({ title: 'System Ready', description: `Loaded Base Knowledge.`, type: 'success' });
         storage.save(enriched, currentVersion);
-      } else {
-         set({ graph: stored, filteredGraph: stored, metricsCalculated: true });
       }
     } catch (e: any) {
       console.error("Initialization Error:", e);
-      get().addToast({ title: 'Metric Error', description: `Loaded basic graph.`, type: 'warning' });
+      get().addToast({ title: 'Boot Error', description: `Using default dataset.`, type: 'warning' });
       set({ graph: INITIAL_GRAPH, filteredGraph: INITIAL_GRAPH, metricsCalculated: false, isThinking: false });
     }
   },
@@ -241,6 +321,7 @@ export const useStore = create<Store>((set, get) => ({
     try {
       const data = await storage.load();
       if (data) {
+        // Ensure meta has version from storage wrapper if missing in graph.meta
         return { ...data.graph, meta: { ...data.graph.meta, version: data.version } };
       }
       return null;
@@ -275,6 +356,7 @@ export const useStore = create<Store>((set, get) => ({
     } catch (e) {
        console.error("Metric recalc failed", e);
        set({ isThinking: false });
+       get().addToast({ title: 'Analytics Error', description: 'Worker calculation failed.', type: 'warning' });
     }
   },
 
@@ -282,7 +364,7 @@ export const useStore = create<Store>((set, get) => ({
      get().applyPatch(newNodesRaw, newEdgesRaw);
   },
 
-  // Optimized ApplyPatch with robust parsing and type guards
+  // Optimized ApplyPatch with robust parsing and validation
   applyPatch: async (patchNodes, patchEdges) => {
     get().pushHistory();
     set(
@@ -290,6 +372,9 @@ export const useStore = create<Store>((set, get) => ({
         const { graph } = state;
         const existingNodeMap = new Map<string, GraphNode>(graph.nodes.map(n => [n.data.id, n]));
         
+        let invalidNodesCount = 0;
+        let invalidEdgesCount = 0;
+
         patchNodes.forEach(pn => {
           if (!pn.id) return;
           
@@ -323,7 +408,7 @@ export const useStore = create<Store>((set, get) => ({
           if (pn.roles && isRoleArray(pn.roles as any[])) roles = pn.roles;
 
 
-          const newNodeData: NodeData = {
+          const rawNodeData: NodeData = {
             id: pn.id,
             label: pn.label || pn.id,
             type: pn.type || 'concept',
@@ -343,11 +428,18 @@ export const useStore = create<Store>((set, get) => ({
             dates: undefined
           };
           
+          // Validate with Zod
+          const validationResult = NodeDataSchema.safeParse(rawNodeData);
+          if (!validationResult.success) {
+            console.warn(`Validation failed for node ${pn.id}:`, validationResult.error);
+            invalidNodesCount++;
+            return;
+          }
+
+          const newNodeData = validationResult.data;
+          
           if (existingNodeMap.has(pn.id)) {
             const existing = existingNodeMap.get(pn.id)!;
-            // Immer allows direct mutation of the 'draft' map values if we were using a Draft Map, 
-            // but here we are rebuilding the array.
-            // We update the map to track changes for edge validation later.
             existingNodeMap.set(pn.id, {
               ...existing,
               data: { ...existing.data, ...newNodeData, id: pn.id }
@@ -357,7 +449,9 @@ export const useStore = create<Store>((set, get) => ({
           }
         });
 
-        const newEdges: GraphEdge[] = patchEdges.map(pe => {
+        const newEdges: GraphEdge[] = [];
+        
+        patchEdges.forEach(pe => {
           let temporal: TemporalFactType | undefined;
           if (pe.temporal && isTemporalFactType(pe.temporal)) {
             temporal = pe.temporal;
@@ -374,7 +468,7 @@ export const useStore = create<Store>((set, get) => ({
             sources = (pe.sources as string[]).map(uri => ({ uri, label: uri.length > 50 ? uri.substring(0,47)+'...' : uri, type: 'website' }));
           }
 
-          const newEdgeData: EdgeData = {
+          const rawEdgeData: EdgeData = {
             id: pe.id || `edge_${Date.now()}_${Math.random().toString(36).substr(2,4)}`,
             source: pe.source || '',
             target: pe.target || '',
@@ -391,8 +485,24 @@ export const useStore = create<Store>((set, get) => ({
             dates: undefined, validFrom: undefined, validTo: undefined
           };
 
-          return { data: newEdgeData };
+          // Validate with Zod
+          const validationResult = EdgeDataSchema.safeParse(rawEdgeData);
+          if (!validationResult.success) {
+             console.warn(`Validation failed for edge ${rawEdgeData.source}->${rawEdgeData.target}:`, validationResult.error);
+             invalidEdgesCount++;
+             return;
+          }
+
+          newEdges.push({ data: validationResult.data });
         });
+
+        if (invalidNodesCount > 0 || invalidEdgesCount > 0) {
+           get().addToast({ 
+             title: 'Validation Warning', 
+             description: `Filtered ${invalidNodesCount} invalid nodes and ${invalidEdgesCount} invalid edges.`, 
+             type: 'warning' 
+           });
+        }
 
         const validNewEdges = newEdges.filter(e => 
           existingNodeMap.has(e.data.source) && existingNodeMap.has(e.data.target)
