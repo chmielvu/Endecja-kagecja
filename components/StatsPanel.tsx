@@ -1,8 +1,8 @@
-
-
 import React from 'react';
 import { useStore } from '../store';
 import { X, Activity, Globe, Share2, Layers } from 'lucide-react';
+import { BakeliteCard } from './BakeliteCard'; // NEW IMPORT
+import { BakeliteButton } from './BakeliteButton'; // NEW IMPORT
 
 export const StatsPanel: React.FC = () => {
   const { graph, showStatsPanel, setShowStatsPanel } = useStore();
@@ -39,24 +39,25 @@ export const StatsPanel: React.FC = () => {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-      <div className="bg-zinc-900 border border-[#b45309]/30 rounded-xl shadow-2xl w-full max-w-3xl flex flex-col">
-        <div className="p-4 border-b border-[#b45309]/20 flex justify-between items-center">
-           <h3 className="text-lg font-bold text-white flex items-center gap-2 font-spectral">
-             <Activity className="text-[#355e3b]" size={20} /> Graph Intelligence Dashboard
-           </h3>
-           <button onClick={() => setShowStatsPanel(false)} className="text-zinc-400 hover:text-white"><X size={20}/></button>
-        </div>
+      <BakeliteCard 
+        title="Graph Intelligence Dashboard" 
+        icon={<Activity className="text-deco-green" size={20} />} 
+        className="w-full max-w-3xl"
+        headerClassName="!bg-deco-panel !rounded-t-xl"
+        chamfered={false}
+      >
+        <button onClick={() => setShowStatsPanel(false)} className="absolute top-4 right-4 text-zinc-400 hover:text-deco-paper"><X size={20}/></button>
 
-        <div className="p-6 grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="p-6 grid grid-cols-2 md:grid-cols-4 gap-4 bg-deco-navy/50">
            <StatCard icon={<Globe size={16} />} label="Nodes" value={nodeCount} sub="Total Entities" />
            <StatCard icon={<Share2 size={16} />} label="Edges" value={edgeCount} sub="Connections" />
            <StatCard icon={<Layers size={16} />} label="Modularity" value={modularity.toFixed(3)} sub={`Factions: ${numCommunities}`} />
-           <StatCard icon={<Activity size={16} />} label="Balance" value={`${globalBalance}%`} sub="Triadic Consistency" color="text-[#355e3b]" />
+           <StatCard icon={<Activity size={16} />} label="Balance" value={`${globalBalance}%`} sub="Triadic Consistency" color="text-deco-green" />
         </div>
 
-        <div className="p-6 border-t border-[#b45309]/10 grid grid-cols-2 gap-8">
+        <div className="p-6 border-t border-deco-gold/10 grid grid-cols-2 gap-8 bg-deco-navy/50">
            <div>
-             <h4 className="text-xs font-bold text-[#b45309] uppercase mb-4">Network Topology</h4>
+             <h4 className="text-xs font-bold text-deco-gold uppercase mb-4">Network Topology</h4>
              <div className="space-y-2 text-sm text-zinc-300">
                <div className="flex justify-between border-b border-zinc-800 pb-1">
                  <span>Density</span> <span className="font-mono text-zinc-400">{density.toFixed(4)}</span>
@@ -74,35 +75,35 @@ export const StatsPanel: React.FC = () => {
            </div>
 
            <div>
-             <h4 className="text-xs font-bold text-[#b45309] uppercase mb-4">Key Influencers (PageRank)</h4>
+             <h4 className="text-xs font-bold text-deco-gold uppercase mb-4">Key Influencers (PageRank)</h4>
              <div className="space-y-2">
                {keyInfluencers.length > 0 ? keyInfluencers.map((n, i) => (
                  <div key={n.id} className="flex items-center gap-2">
                    <span className="text-xs font-mono text-zinc-600 w-4">{i+1}.</span>
                    <div className="flex-1 h-2 bg-zinc-800 rounded-full overflow-hidden">
-                     <div className="h-full bg-[#355e3b]" style={{ width: `${(n.score || 0) * 1000}%` }}></div>
+                     <div className="h-full bg-deco-green" style={{ width: `${(n.score || 0) * 1000}%` }}></div>
                    </div>
-                   <span className="text-xs text-white truncate w-24">{n.label}</span>
+                   <span className="text-xs text-deco-paper truncate w-24">{n.label}</span>
                  </div>
                )) : topNodes.map((n, i) => ( // Fallback to client-side pagerank if no Python analysis
                  <div key={n.data.id} className="flex items-center gap-2">
                    <span className="text-xs font-mono text-zinc-600 w-4">{i+1}.</span>
                    <div className="flex-1 h-2 bg-zinc-800 rounded-full overflow-hidden">
-                     <div className="h-full bg-[#355e3b]" style={{ width: `${(n.data.pagerank || 0) * 1000}%` }}></div>
+                     <div className="h-full bg-deco-green" style={{ width: `${(n.data.pagerank || 0) * 1000}%` }}></div>
                    </div>
-                   <span className="text-xs text-white truncate w-24">{n.data.label}</span>
+                   <span className="text-xs text-deco-paper truncate w-24">{n.data.label}</span>
                  </div>
                ))}
              </div>
            </div>
         </div>
-      </div>
+      </BakeliteCard>
     </div>
   );
 };
 
-const StatCard: React.FC<any> = ({ icon, label, value, sub, color = "text-white" }) => (
-  <div className="bg-zinc-950 border border-zinc-800 p-4 rounded-lg">
+const StatCard: React.FC<any> = ({ icon, label, value, sub, color = "text-deco-paper" }) => (
+  <div className="bg-deco-panel border border-deco-gold/30 p-4 rounded-lg">
     <div className="flex items-center gap-2 text-zinc-500 text-xs uppercase font-bold mb-2">
       {icon} {label}
     </div>

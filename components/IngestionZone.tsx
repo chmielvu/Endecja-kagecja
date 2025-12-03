@@ -1,5 +1,6 @@
 
 
+
 import React, { useCallback, useState } from 'react';
 import { useStore } from '../store';
 import { analyzeDocument } from '../services/geminiService';
@@ -69,23 +70,23 @@ export const IngestionZone: React.FC = () => {
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
       className={`
-        relative border-2 border-dashed rounded-sm p-6 flex flex-col items-center justify-center text-center transition-all duration-300
+        relative border-2 border-dashed rounded-none p-6 flex flex-col items-center justify-center text-center transition-all duration-300
         ${isDragging 
-          ? 'border-antique-brass bg-antique-brass/10' 
-          : 'border-forest-uniform/40 bg-bunker-dark/50 hover:border-antique-brass/50'
+          ? 'border-deco-gold bg-deco-gold/10' 
+          : 'border-deco-gold/40 bg-deco-panel/50 hover:border-deco-gold/50'
         }
         ${isProcessing ? 'pointer-events-none opacity-50' : ''}
       `}
     >
       {isProcessing ? (
         <div className="flex flex-col items-center gap-2">
-           <Loader2 className="animate-spin text-antique-brass" size={24} />
-           <span className="text-xs font-mono text-parchment animate-pulse">DECODING INTELLIGENCE...</span>
+           <Loader2 className="animate-spin text-deco-gold" size={24} />
+           <span className="text-xs font-mono text-deco-paper animate-pulse">DECODING INTELLIGENCE...</span>
         </div>
       ) : (
         <>
-          <FileDown className={`mb-2 transition-colors ${isDragging ? 'text-antique-brass' : 'text-forest-uniform'}`} size={24} />
-          <h4 className="text-xs font-bold text-parchment uppercase font-spectral tracking-widest">Ingest Evidence</h4>
+          <FileDown className={`mb-2 transition-colors ${isDragging ? 'text-deco-gold' : 'text-zinc-500'}`} size={24} />
+          <h4 className="text-xs font-bold text-deco-paper uppercase font-spectral tracking-widest">Ingest Evidence</h4>
           <p className="text-[10px] text-zinc-500 mt-1 max-w-[150px]">
             Drop archival scans (PDF/IMG) here to extract entities via Gemini.
           </p>

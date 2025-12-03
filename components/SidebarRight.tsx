@@ -1,9 +1,10 @@
-
 import React, { useState, useRef, useEffect } from 'react';
 import { useStore } from '../store';
 import { chatWithAgent } from '../services/geminiService';
 import { Send, Cpu, ChevronDown, ChevronRight, MessageSquare, Scroll, PanelRightClose } from 'lucide-react';
 import { DossierPanel } from './DossierPanel';
+import { BakeliteInput } from './BakeliteInput'; // NEW IMPORT
+import { BakeliteButton } from './BakeliteButton'; // NEW IMPORT
 
 export const SidebarRight: React.FC = () => {
   const { messages, addMessage, isThinking, setThinking, graph, isRightSidebarOpen, toggleRightSidebar, selectedNodeIds } = useStore();
@@ -55,7 +56,7 @@ export const SidebarRight: React.FC = () => {
 
   return (
     <div 
-      className={`bg-surface border-l border-archival-gold/20 flex flex-col flex-shrink-0 transition-all duration-300 ease-in-out relative shadow-2xl z-20 ${isRightSidebarOpen ? 'w-[420px]' : 'w-0'}`}
+      className={`bg-deco-panel border-l border-deco-gold/20 flex flex-col flex-shrink-0 transition-all duration-300 ease-in-out relative shadow-2xl z-20 ${isRightSidebarOpen ? 'w-[420px]' : 'w-0'}`}
     >
       <div className="w-[420px] h-full flex flex-col">
         
@@ -65,26 +66,26 @@ export const SidebarRight: React.FC = () => {
         ) : (
             <>
                 {/* Chat Header */}
-                <div className="p-4 border-b border-archival-gold/20 flex justify-between items-center bg-surface shrink-0">
-                  <h2 className="text-lg font-bold text-[#e4e4e7] flex items-center gap-2 font-spectral">
-                    <MessageSquare size={18} className="text-archival-gold" /> Roman Dmowski (1925)
+                <div className="p-4 border-b border-deco-gold/20 flex justify-between items-center bg-deco-panel/90 shrink-0">
+                  <h2 className="text-lg font-bold text-deco-paper flex items-center gap-2 font-spectral">
+                    <MessageSquare size={18} className="text-deco-gold" /> Roman Dmowski (1925)
                   </h2>
                   <div className="flex items-center gap-2">
-                     <span className="text-[10px] bg-owp-green/10 text-owp-green border border-owp-green/30 px-2 py-0.5 rounded font-mono">PERSONA ACTIVE</span>
-                     <button onClick={toggleRightSidebar} className="text-zinc-500 hover:text-white transition-colors ml-2"><PanelRightClose size={18}/></button>
+                     <span className="text-[10px] bg-deco-green/10 text-deco-green border border-deco-green/30 px-2 py-0.5 rounded font-mono">PERSONA ACTIVE</span>
+                     <BakeliteButton onClick={toggleRightSidebar} icon={<PanelRightClose size={18}/>} className="!p-1 !px-2 ml-2" variant="secondary"><span className="sr-only">Toggle Sidebar</span></BakeliteButton>
                   </div>
                 </div>
 
-                <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-deco-navy">
                   {messages.map((msg) => (
                     <ChatMessageItem key={msg.id} msg={msg} />
                   ))}
                   {isThinking && (
                     <div className="flex gap-2 items-start animate-pulse opacity-70">
-                      <div className="w-8 h-8 rounded-full bg-archival-gold/20 flex items-center justify-center border border-archival-gold/30">
-                         <Cpu size={14} className="text-archival-gold" />
+                      <div className="w-8 h-8 rounded-full bg-deco-gold/20 flex items-center justify-center border border-deco-gold/30">
+                         <Cpu size={14} className="text-deco-gold" />
                       </div>
-                      <div className="bg-zinc-900 rounded-lg p-3 text-xs text-zinc-400 font-serif italic border border-zinc-800">
+                      <div className="bg-deco-panel rounded-lg p-3 text-xs text-zinc-400 font-serif italic border border-deco-gold/20">
                         Dmowski analizuje sytuację geopolityczną...
                       </div>
                     </div>
@@ -92,23 +93,25 @@ export const SidebarRight: React.FC = () => {
                   <div ref={messagesEndRef} />
                 </div>
 
-                <div className="p-4 border-t border-archival-gold/20 bg-surface shrink-0">
+                <div className="p-4 border-t border-deco-gold/20 bg-deco-panel shrink-0">
                   <div className="flex gap-2">
-                    <input
+                    <BakeliteInput
                       type="text"
                       value={input}
                       onChange={(e) => setInput(e.target.value)}
                       onKeyDown={(e) => e.key === 'Enter' && handleSend()}
                       placeholder="Zadaj pytanie Panu Romanowi..."
-                      className="flex-1 bg-zinc-950 border border-zinc-800 rounded-sm px-3 py-2 text-sm text-white focus:outline-none focus:border-archival-gold font-serif placeholder:font-sans placeholder:text-zinc-600"
+                      className="flex-1"
                     />
-                    <button 
+                    <BakeliteButton 
                       onClick={handleSend}
                       disabled={isThinking}
-                      className="bg-owp-green hover:bg-[#2f5335] text-white p-2 rounded-sm disabled:opacity-50 border border-owp-green"
+                      className="bg-deco-green hover:bg-deco-green/80 text-deco-paper p-2 rounded-sm disabled:opacity-50 border border-deco-green"
+                      icon={<Send size={16} />}
+                      variant="primary" // Assuming primary for send button
                     >
-                      <Send size={16} />
-                    </button>
+                      <span className="sr-only">Send</span>
+                    </BakeliteButton>
                   </div>
                 </div>
             </>
@@ -124,27 +127,28 @@ const ChatMessageItem: React.FC<{ msg: any }> = ({ msg }) => {
 
   return (
     <div className={`flex gap-3 ${isUser ? 'flex-row-reverse' : 'flex-row'}`}>
-      <div className={`w-8 h-8 rounded-full flex-shrink-0 flex items-center justify-center border ${isUser ? 'bg-owp-green/20 border-owp-green/50' : 'bg-archival-gold/10 border-archival-gold/30'}`}>
-        {isUser ? <span className="text-xs text-owp-green font-bold">Ty</span> : <span className="font-serif font-bold text-xs text-archival-gold">RD</span>}
+      <div className={`w-8 h-8 rounded-full flex-shrink-0 flex items-center justify-center border ${isUser ? 'bg-deco-green/20 border-deco-green/50' : 'bg-deco-gold/10 border-deco-gold/30'}`}>
+        {isUser ? <span className="text-xs text-deco-green font-bold">Ty</span> : <span className="font-serif font-bold text-xs text-deco-gold">RD</span>}
       </div>
       
       <div className={`max-w-[85%] space-y-2`}>
-        <div className={`p-3 rounded-sm text-sm break-words whitespace-pre-wrap ${isUser ? 'bg-owp-green/10 text-zinc-200 border border-owp-green/30' : 'bg-zinc-900 text-[#e4e4e7] border border-zinc-800 font-serif'}`}>
+        <div className={`p-3 rounded-sm text-sm break-words whitespace-pre-wrap ${isUser ? 'bg-deco-green/10 text-deco-paper border border-deco-green/30' : 'bg-deco-panel text-deco-paper border border-deco-gold/20 font-serif'}`}>
           {msg.content}
         </div>
 
         {/* ReAct Reasoning Dropdown */}
         {!isUser && msg.reasoning && (
-           <div className="border border-archival-gold/20 rounded-sm bg-surface overflow-hidden">
-             <button 
+           <div className="border border-deco-gold/20 rounded-sm bg-deco-panel overflow-hidden">
+             <BakeliteButton 
                onClick={() => setShowReasoning(!showReasoning)}
-               className="w-full flex items-center gap-2 px-3 py-1.5 bg-surface hover:bg-zinc-900 transition-colors text-xs text-archival-gold"
+               className="w-full justify-start !px-3 !py-1.5"
+               variant="secondary"
+               icon={showReasoning ? <ChevronDown size={12}/> : <ChevronRight size={12}/>}
              >
-               {showReasoning ? <ChevronDown size={12}/> : <ChevronRight size={12}/>}
                <Scroll size={10} /> Przemyślenia (Chain-of-Thought)
-             </button>
+             </BakeliteButton>
              {showReasoning && (
-               <div className="p-3 text-xs text-zinc-500 font-mono bg-black/20 whitespace-pre-wrap border-t border-archival-gold/10 break-words">
+               <div className="p-3 text-xs text-zinc-500 font-mono bg-deco-navy/20 whitespace-pre-wrap border-t border-deco-gold/10 break-words">
                  {msg.reasoning}
                </div>
              )}

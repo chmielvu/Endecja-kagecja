@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useStore } from '../store';
 import { X, Check, BrainCircuit, ArrowRight, GitCommit } from 'lucide-react';
+import { BakeliteCard } from './BakeliteCard'; // NEW IMPORT
+import { BakeliteButton } from './BakeliteButton'; // NEW IMPORT
 
 export const PatchReviewModal: React.FC = () => {
   const { pendingPatch, setPendingPatch, applyPatch, graph } = useStore();
@@ -39,57 +41,52 @@ export const PatchReviewModal: React.FC = () => {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-      <div className="bg-zinc-950 border border-[#b45309]/30 rounded-xl shadow-2xl w-full max-w-4xl flex flex-col h-[85vh] animate-in fade-in zoom-in-95 duration-200">
+      <BakeliteCard 
+        title={pendingPatch.type === 'expansion' ? 'AI Graph Expansion' : 'Archives Review'}
+        icon={<BrainCircuit className="text-deco-green" />}
+        className="w-full max-w-4xl h-[85vh] flex flex-col"
+        headerClassName="!bg-deco-panel !rounded-t-xl"
+        chamfered={false}
+      >
+        <button onClick={() => setPendingPatch(null)} className="absolute top-6 right-6 text-zinc-500 hover:text-deco-paper"><X size={24}/></button>
         
-        {/* Header */}
-        <div className="p-6 border-b border-[#b45309]/20 flex justify-between items-start bg-zinc-900/50">
-          <div>
-            <h2 className="text-xl font-serif font-bold text-white flex items-center gap-2">
-              <BrainCircuit className="text-[#355e3b]" /> 
-              {pendingPatch.type === 'expansion' ? 'AI Graph Expansion' : 'Archives Review'}
-            </h2>
-            <p className="text-sm text-zinc-400 mt-1">Review proposed changes before applying to the Knowledge Graph.</p>
-          </div>
-          <button onClick={() => setPendingPatch(null)} className="text-zinc-500 hover:text-white"><X size={24}/></button>
-        </div>
-
         {/* Reasoning Block */}
-        <div className="p-6 bg-zinc-900/30 border-b border-zinc-800 shrink-0">
-          <h3 className="text-xs font-bold text-[#b45309] uppercase mb-2">Agent Reasoning</h3>
-          <p className="text-sm text-zinc-300 font-serif italic border-l-2 border-[#355e3b] pl-3">
+        <div className="p-6 bg-deco-panel/50 border-b border-deco-gold/20 shrink-0">
+          <h3 className="text-xs font-bold text-deco-gold uppercase mb-2">Agent Reasoning</h3>
+          <p className="text-sm text-deco-paper font-serif italic border-l-2 border-deco-green pl-3">
             "{pendingPatch.reasoning}"
           </p>
         </div>
 
         {/* Content Scroll Area */}
-        <div className="flex-1 overflow-hidden flex flex-col md:flex-row">
+        <div className="flex-1 overflow-hidden flex flex-col md:flex-row bg-deco-navy/50">
           
           {/* Nodes Column */}
-          <div className="flex-1 overflow-y-auto p-4 border-r border-zinc-800">
-            <div className="flex justify-between items-center mb-4 sticky top-0 bg-zinc-950/90 p-2 backdrop-blur-sm z-10 border-b border-zinc-800">
-              <h3 className="text-sm font-bold text-white flex items-center gap-2">
+          <div className="flex-1 overflow-y-auto p-4 border-r border-deco-gold/20">
+            <div className="flex justify-between items-center mb-4 sticky top-0 bg-deco-navy/90 p-2 backdrop-blur-sm z-10 border-b border-deco-gold/20">
+              <h3 className="text-sm font-bold text-deco-paper flex items-center gap-2">
                 Nodes <span className="text-xs bg-zinc-800 px-2 py-0.5 rounded text-zinc-400">{pendingPatch.nodes.length}</span>
               </h3>
-              <button onClick={() => setSelectedNodeIdxs(new Set())} className="text-xs text-zinc-500 hover:text-white">Uncheck All</button>
+              <BakeliteButton onClick={() => setSelectedNodeIdxs(new Set())} className="text-xs" variant="secondary">Uncheck All</BakeliteButton>
             </div>
             
             <div className="space-y-3">
               {pendingPatch.nodes.map((node, i) => {
                 const isUpdate = existingNodeIds.has(node.id!);
                 return (
-                  <label key={i} className={`flex gap-3 p-3 rounded border transition-colors cursor-pointer group ${selectedNodeIdxs.has(i) ? 'bg-[#355e3b]/10 border-[#355e3b]/30' : 'opacity-60 border-transparent hover:bg-zinc-900'}`}>
+                  <label key={i} className={`flex gap-3 p-3 rounded border transition-colors cursor-pointer group ${selectedNodeIdxs.has(i) ? 'bg-deco-green/10 border-deco-green/30' : 'opacity-60 border-transparent hover:bg-deco-panel/50'}`}>
                     <input 
                       type="checkbox" 
                       checked={selectedNodeIdxs.has(i)} 
                       onChange={() => toggleNode(i)}
-                      className="mt-1 rounded border-zinc-700 bg-zinc-900 text-[#355e3b] focus:ring-offset-zinc-950 accent-[#355e3b]"
+                      className="mt-1 rounded border-zinc-700 bg-deco-panel text-deco-green focus:ring-offset-deco-navy accent-deco-green"
                     />
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
-                        <span className={`font-bold text-sm ${selectedNodeIdxs.has(i) ? 'text-white' : 'text-zinc-400'}`}>{node.label}</span>
-                        {isUpdate && <span className="text-[10px] uppercase bg-amber-900/30 text-amber-400 px-1 rounded border border-amber-900/50">Update</span>}
-                        {!isUpdate && <span className="text-[10px] uppercase bg-emerald-900/30 text-emerald-400 px-1 rounded border border-emerald-900/50">New</span>}
-                        <span className="text-xs text-zinc-600 bg-zinc-900 px-1 rounded border border-zinc-800">{node.type}</span>
+                        <span className={`font-bold text-sm ${selectedNodeIdxs.has(i) ? 'text-deco-paper' : 'text-zinc-400'}`}>{node.label}</span>
+                        {isUpdate && <span className="text-[10px] uppercase bg-deco-gold/30 text-deco-gold px-1 py-0.5 rounded-sm border border-deco-gold/50">Update</span>}
+                        {!isUpdate && <span className="text-[10px] uppercase bg-deco-green/30 text-deco-green px-1 py-0.5 rounded-sm border border-deco-green/50">New</span>}
+                        <span className="text-xs text-zinc-600 bg-deco-panel/50 px-1 py-0.5 rounded-sm border border-zinc-800">{node.type}</span>
                       </div>
                       <p className="text-xs text-zinc-500 mt-1 line-clamp-2">{node.description}</p>
                       {node.dates && <p className="text-[10px] font-mono text-zinc-600 mt-1">{node.dates} • {node.region}</p>}
@@ -102,21 +99,21 @@ export const PatchReviewModal: React.FC = () => {
 
           {/* Edges Column */}
           <div className="flex-1 overflow-y-auto p-4">
-             <div className="flex justify-between items-center mb-4 sticky top-0 bg-zinc-950/90 p-2 backdrop-blur-sm z-10 border-b border-zinc-800">
-              <h3 className="text-sm font-bold text-white flex items-center gap-2">
+             <div className="flex justify-between items-center mb-4 sticky top-0 bg-deco-navy/90 p-2 backdrop-blur-sm z-10 border-b border-deco-gold/20">
+              <h3 className="text-sm font-bold text-deco-paper flex items-center gap-2">
                 Edges <span className="text-xs bg-zinc-800 px-2 py-0.5 rounded text-zinc-400">{pendingPatch.edges.length}</span>
               </h3>
-              <button onClick={() => setSelectedEdgeIdxs(new Set())} className="text-xs text-zinc-500 hover:text-white">Uncheck All</button>
+              <BakeliteButton onClick={() => setSelectedEdgeIdxs(new Set())} className="text-xs" variant="secondary">Uncheck All</BakeliteButton>
             </div>
 
             <div className="space-y-3">
               {pendingPatch.edges.map((edge, i) => (
-                 <label key={i} className={`flex gap-3 p-3 rounded border transition-colors cursor-pointer group ${selectedEdgeIdxs.has(i) ? 'bg-[#355e3b]/10 border-[#355e3b]/30' : 'opacity-60 border-transparent hover:bg-zinc-900'}`}>
+                 <label key={i} className={`flex gap-3 p-3 rounded border transition-colors cursor-pointer group ${selectedEdgeIdxs.has(i) ? 'bg-deco-green/10 border-deco-green/30' : 'opacity-60 border-transparent hover:bg-deco-panel/50'}`}>
                     <input 
                       type="checkbox" 
                       checked={selectedEdgeIdxs.has(i)} 
                       onChange={() => toggleEdge(i)}
-                      className="mt-1 rounded border-zinc-700 bg-zinc-900 text-[#355e3b] focus:ring-offset-zinc-950 accent-[#355e3b]"
+                      className="mt-1 rounded border-zinc-700 bg-deco-panel text-deco-green focus:ring-offset-deco-navy accent-deco-green"
                     />
                     <div className="flex-1">
                       <div className="flex items-center gap-2 text-sm text-zinc-300">
@@ -124,8 +121,8 @@ export const PatchReviewModal: React.FC = () => {
                         <ArrowRight size={12} className="text-zinc-600" />
                         <span className="font-mono text-xs text-zinc-500 truncate max-w-[80px]">{edge.target}</span>
                       </div>
-                      <div className="text-xs text-[#b45309] font-bold mt-1">{edge.label}</div>
-                      {edge.sign === 'negative' && <div className="text-[10px] text-red-400 mt-0.5">Negative / Conflict</div>}
+                      <div className="text-xs text-deco-gold font-bold mt-1">{edge.label || edge.relationType}</div> {/* Display relationType if label is empty */}
+                      {edge.sign === 'negative' && <div className="text-[10px] text-deco-crimson mt-0.5">Negative / Conflict</div>}
                     </div>
                  </label>
               ))}
@@ -137,21 +134,21 @@ export const PatchReviewModal: React.FC = () => {
         </div>
 
         {/* Footer */}
-        <div className="p-4 border-t border-zinc-800 bg-zinc-900/50 flex justify-end gap-3 shrink-0">
-          <button onClick={() => setPendingPatch(null)} className="px-4 py-2 text-sm text-zinc-400 hover:text-white transition-colors">
+        <div className="p-4 border-t border-deco-gold/20 bg-deco-panel flex justify-end gap-3 shrink-0">
+          <BakeliteButton onClick={() => setPendingPatch(null)} variant="secondary">
             Discard All
-          </button>
-          <button 
+          </BakeliteButton>
+          <BakeliteButton 
             onClick={handleApply}
             disabled={selectedNodeIdxs.size === 0 && selectedEdgeIdxs.size === 0}
-            className="px-6 py-2 bg-[#355e3b] hover:bg-[#2a4a2f] disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-bold rounded flex items-center gap-2 shadow-lg shadow-[#355e3b]/20"
+            variant="primary"
+            icon={<GitCommit size={16} />}
           >
-            <GitCommit size={16} />
             Apply Changes ({selectedNodeIdxs.size + selectedEdgeIdxs.size})
-          </button>
+          </BakeliteButton>
         </div>
 
-      </div>
+      </BakeliteCard>
     </div>
   );
 };

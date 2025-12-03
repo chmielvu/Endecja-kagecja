@@ -5,33 +5,39 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Endecja KG Builder</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Spectral:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=Spectral:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <script>
       tailwind.config = {
         darkMode: 'class',
         theme: {
           extend: {
             fontFamily: {
-              sans: ['Inter', 'sans-serif'],
+              sans: ['Arial', 'sans-serif'], // Fallback sans-serif
               mono: ['JetBrains Mono', 'monospace'],
               spectral: ['Spectral', 'serif'],
             },
             colors: {
-              // The Conspiratorial Palette
-              'bunker-dark': '#050a06',
-              'forest-uniform': '#1e3a25',
-              'parchment': '#e5e5c0',
-              'parchment-dim': '#c0c0a0',
-              'antique-brass': '#b45309',
-              'crimson-alert': '#991b1b',
-              'paper-ink': '#1a1a18',
-              // Semantic mappings
-              'owp-green': '#1e3a25', // Replaces vivid green with uniform green
-              'archival-gold': '#b45309',
+              // The Dmowski Salon Palette (Art Deco 1928)
+              'deco-navy': '#020617', // Main background
+              'deco-paper': '#fdfbf7', // Text high contrast
+              'deco-gold': '#d4af37', // Primary accent/borders
+              'deco-crimson': '#dc143c', // Alerts/National accents (Polish Crimson)
+              'deco-panel': '#0f172a', // Secondary background (panels, chat)
+              'deco-green': '#1e3a25', // Retained for Mieczyk ribbon/specific accents
+              // Semantic mappings for old code references (will be phased out)
+              'owp-green': '#1e3a25', 
+              'archival-gold': '#d4af37',
+              'bunker-dark': '#020617', // Map old names to new palette
+              'forest-uniform': '#0f172a', // Map old names to new palette
+              'antique-brass': '#d4af37', // Map old names to new palette
+              'crimson-alert': '#dc143c', // Map old names to new palette
+              'parchment': '#fdfbf7', // Map old names to new palette
+              'parchment-dim': '#e0dcd7', // Slightly dimmer cream
+              'paper-ink': '#020617', // Dark ink on deco-paper
             },
             backgroundImage: {
-              'noise': "url('data:image/svg+xml,%3Csvg viewBox=\"0 0 200 200\" xmlns=\"http://www.w3.org/2000/svg\"%3E%3Cfilter id=\"noiseFilter\"%3E%3CfeTurbulence type=\"fractalNoise\" baseFrequency=\"0.65\" numOctaves=\"3\" stitchTiles=\"stitch\"/%3E%3C/filter%3E%3Crect width=\"100%25\" height=\"100%25\" filter=\"url(%23noiseFilter)\" opacity=\"0.05\"/%3E%3C/svg%3E')",
-              'vignette': 'radial-gradient(circle at center, transparent 0%, rgba(5,10,6,0.6) 100%)'
+              'deco-pattern': "url('data:image/svg+xml,%3Csvg width=\"60\" height=\"60\" viewBox=\"0 0 60 60\" xmlns=\"http://www.w3.org/2000/svg\"%3E%3Cg fill=\"none\" fill-rule=\"evenodd\"%3E%3Cg fill=\"%23d4af37\" fill-opacity=\"0.02\"%3E%3Cpath d=\"M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0 0v4h2v-4h4v-2h-4v-4h-2v4h-4v2h4zm10 10v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0 0v4h2v-4h4v-2h-4v-4h-2v4h-4v2h4zM20 20v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0 0v4h2v-4h4v-2h-4v-4h-2v4h-4v2h4zM10 44v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0 0v4h2v-4h4v-2h-4v-4h-2v4h-4v2h4z\"/%3E%3C/g%3E%3C/g%3E%3C/svg%3E')",
+              'vignette': 'radial-gradient(circle at center, transparent 0%, rgba(2,6,23,0.8) 100%)' // Updated to deco-navy
             }
           }
         }
@@ -54,7 +60,9 @@
     "url": "https://aistudiocdn.com/url@^0.11.4",
     "idb": "https://aistudiocdn.com/idb@^8.0.3",
     "graphology": "https://aistudiocdn.com/graphology@^0.26.0",
-    "graphology-communities-louvain": "https://aistudiocdn.com/graphology-communities-louvain@^2.0.0"
+    "graphology-communities-louvain": "https://aistudiocdn.com/graphology-communities-louvain@^2.0.0",
+    "clsx": "https://aistudiocdn.com/clsx@^2.1.1",
+    "tailwind-merge": "https://aistudiocdn.com/tailwind-merge@^3.4.0"
   }
 }
 </script>

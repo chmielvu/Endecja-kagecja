@@ -1,4 +1,5 @@
 
+
 import { THEME } from '../constants';
 
 /**
@@ -9,14 +10,16 @@ export const getRankInsigniaSVG = (rank: number = 0, type: string): string => {
   const width = 60 + (rank * 100);
   const height = 40 + (rank * 80);
   
-  // Base colors mapped to types
-  let baseColor = THEME.colors.forestUniform; // Default Forest
-  if (type === 'organization') baseColor = '#7f1d1d'; // Deep Red
-  if (type === 'event') baseColor = '#78350f'; // Amber/Leather
-  if (type === 'publication') baseColor = '#3f3f46'; // Ink Black
-  
-  // Insignia Color (usually Parchment or Silver/Gold)
-  const insigniaColor = '#e5e5c0'; 
+  // Base colors mapped to types using the Art Deco Palette
+  let baseColor = THEME.colors.surface; // Deco Panel default
+  if (type === 'organization') baseColor = THEME.colors.crimson; // Deco Crimson
+  if (type === 'event') baseColor = THEME.colors.antiqueBrass; // Deco Gold
+  if (type === 'publication') baseColor = THEME.colors.background; // Deco Navy
+  if (type === 'person') baseColor = THEME.colors.background; // Deco Navy for persons
+
+  // Insignia Color (Deco Gold or Deco Paper)
+  const insigniaColor = THEME.colors.antiqueBrass; // Deco Gold
+  const detailColor = THEME.colors.parchment; // Deco Paper for finer details
 
   // Determine Rank Level
   // 0.0 - 0.2: Private (Plain)
@@ -49,21 +52,22 @@ export const getRankInsigniaSVG = (rank: number = 0, type: string): string => {
       `;
   }
   if (type === 'organization') {
-     // Sword Icon for Orgs
+     // Sword Icon for Orgs (simplified for background SVG)
      shapes += `
-       <path d="M${width/2} ${10} L${width/2} ${25}" stroke="${insigniaColor}" stroke-width="2" />
-       <path d="M${width/2 - 5} ${15} L${width/2 + 5} ${15}" stroke="${insigniaColor}" stroke-width="2" />
+       <path d="M${width/2} ${10} L${width/2} ${25}" stroke="${detailColor}" stroke-width="2" />
+       <path d="M${width/2 - 5} ${15} L${width/2 + 5} ${15}" stroke="${detailColor}" stroke-width="2" />
      `;
   }
 
-  // Fabric Texture Pattern
+  // Art Deco scales/fans pattern (subtle)
+  const patternId = `decoPattern-${Math.random().toString(36).substring(7)}`;
   const texture = `
     <defs>
-      <pattern id="fabric" x="0" y="0" width="4" height="4" patternUnits="userSpaceOnUse">
-        <path d="M-1,1 l2,-2 M0,4 l4,-4 M3,5 l2,-2" stroke="#000" stroke-width="0.5" opacity="0.1" />
+      <pattern id="${patternId}" x="0" y="0" width="10" height="10" patternUnits="userSpaceOnUse">
+        <path d="M0 0L10 0L5 10L0 0Z M10 0L0 0L5 10L10 0Z" fill="${THEME.colors.antiqueBrass}" fill-opacity="0.05" />
       </pattern>
     </defs>
-    <rect width="100%" height="100%" fill="url(#fabric)" />
+    <rect width="100%" height="100%" fill="url(#${patternId})" />
   `;
 
   const svg = `
@@ -71,8 +75,9 @@ export const getRankInsigniaSVG = (rank: number = 0, type: string): string => {
       <rect width="100%" height="100%" fill="${baseColor}" />
       ${texture}
       ${shapes}
-      <!-- Stitched Border Effect simulated inside SVG for better rendering if CSS fails -->
-      <rect x="2" y="2" width="${width-4}" height="${height-4}" fill="none" stroke="${THEME.colors.antiqueBrass}" stroke-width="1" stroke-dasharray="4 2" opacity="0.5" />
+      <!-- Double Border Effect simulated inside SVG -->
+      <rect x="1" y="1" width="${width-2}" height="${height-2}" fill="none" stroke="${THEME.colors.antiqueBrass}" stroke-width="1" />
+      <rect x="3" y="3" width="${width-6}" height="${height-6}" fill="none" stroke="${THEME.colors.antiqueBrass}" stroke-width="0.5" opacity="0.7" />
     </svg>
   `;
 

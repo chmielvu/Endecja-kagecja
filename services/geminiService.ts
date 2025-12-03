@@ -196,7 +196,7 @@ export async function analyzeDocument(
     TASK:
     1. Extract all key entities (People, Organizations, Events, Publications, Concepts, Locations, Documents related to the file itself) and relationships.
     2. Focus on the Endecja movement context and Polish history.
-    3. For each extracted entity, determine its 'validity' (temporal existence) as an 'instant' (e.g., "1934") or 'interval' (e.g., "1918-1939").
+    3. For each extracted entity, determine its 'validity' (temporal existence) as an 'instant' (e.g., "1934") or 'interval' (e.g., "1918-1939") or 'fuzzy'.
     4. For each relationship, determine its 'temporal' context.
     5. Provide specific 'sources' as a structured array for *each* node and edge, referencing the document.
     6. For node 'region', if location is clear, provide structured RegionInfo.
@@ -213,8 +213,8 @@ export async function analyzeDocument(
     SCHEMA for Edges:
     - source: "source_id"
     - target: "target_id"
-    - relationType: "founded|member_of|led|published|influenced|opposed|collaborated_with|participated_in|authored|organized|related_to"
-    - temporal: { type: "instant"|"interval", timestamp/start: "YYYY..." }
+    - relationType: "founded|member_of|led|published|influenced|opposed|collaborated_with|participated_in|authored|organized|related_to|supported|criticized"
+    - temporal: { type: "instant"|"interval"|"fuzzy", timestamp/start/approximate: "YYYY..." }
     - sources: [{ uri: "${file.name}", label: "Document Scan", type: "archival" }]
     
     RETURN ONLY A JSON OBJECT.
@@ -270,7 +270,7 @@ export async function generateGraphExpansion(
     
     TASK:
     1. Identify new entities (person, organization, event, concept, publication, location) and their key relationships.
-    2. For each extracted entity, determine its 'validity' (temporal existence) as an 'instant' (e.g., "1934") or 'interval' (e.g., "1918-1939").
+    2. For each extracted entity, determine its 'validity' (temporal existence) as an 'instant' (e.g., "1934") or 'interval' (e.g., "1918-1939") or 'fuzzy'.
     3. For each relationship, determine its 'temporal' context.
     4. Provide specific 'sources' as a structured array for *each* node and edge.
     5. For node 'region', provide structured RegionInfo if location is clear.
@@ -284,15 +284,15 @@ export async function generateGraphExpansion(
     - label: "Full Name"
     - type: "person|organization|event|concept|publication|location"
     - description: "Short description with historical context."
-    - validity: { type: "instant"|"interval", timestamp/start: "YYYY..." }
+    - validity: { type: "instant"|"interval"|"fuzzy", timestamp/start/approximate: "YYYY..." }
     - region?: { id: "slug", label: "Region Name", type: "city|province|country" }
     - sources: [{ uri: "https://...", label: "Source Title", type: "website" }]
     
     SCHEMA for Edges:
     - source: "source_id"
     - target: "target_id"
-    - relationType: "founded|member_of|led|published|influenced|opposed|collaborated_with|participated_in|authored|organized|related_to"
-    - temporal: { type: "instant"|"interval", timestamp/start: "YYYY..." }
+    - relationType: "founded|member_of|led|published|influenced|opposed|collaborated_with|participated_in|authored|organized|related_to|supported|criticized"
+    - temporal: { type: "instant"|"interval"|"fuzzy", timestamp/start/approximate: "YYYY..." }
     - sources: [{ uri: "https://...", label: "Source Title", type: "website" }]
     
     {
@@ -352,7 +352,7 @@ export async function generateNodeDeepening(
     
     OUTPUT SCHEMA for updatedProperties:
     - description: "More detailed biography/context."
-    - validity?: { type: "instant"|"interval", timestamp/start: "YYYY..." }
+    - validity?: { type: "instant"|"interval"|"fuzzy", timestamp/start/approximate: "YYYY..." }
     - region?: { id: "slug", label: "Region Name", type: "city|province|country" }
     - existence?: Array<{ start: string; end?: string; status: string; context?: string; }> (for orgs)
     - roles?: Array<{ role: string; organization?: string; start: string; end?: string; context?: string; }> (for persons)
@@ -361,8 +361,8 @@ export async function generateNodeDeepening(
     OUTPUT SCHEMA for newEdges:
     - source: "${node.id}" (or other ID if the deepened node is the target)
     - target: "slug_of_related_entity"
-    - relationType: "founded|member_of|led|published|influenced|opposed|collaborated_with|participated_in|authored|organized|related_to"
-    - temporal: { type: "instant"|"interval", timestamp/start: "YYYY..." }
+    - relationType: "founded|member_of|led|published|influenced|opposed|collaborated_with|participated_in|authored|organized|related_to|supported|criticized"
+    - temporal: { type: "instant"|"interval"|"fuzzy", timestamp/start/approximate: "YYYY..." }
     - sources: [{ uri: "https://...", label: "Source Title", type: "website" }]
     
     RETURN ONLY A JSON OBJECT.

@@ -1,43 +1,39 @@
 
-
-import { KnowledgeGraph, GraphNode, GraphEdge, TemporalFactType, SourceCitation, RegionInfo } from './types';
+import { KnowledgeGraph, GraphNode, GraphEdge, TemporalFactType, SourceCitation, RegionInfo, NodeData, EdgeData, NodeType } from './types';
 
 // Theme Constants (Must match index.html Tailwind config)
 export const THEME = {
   colors: {
-    background: '#050a06', // Bunker Dark
-    surface: '#0f1f12', // Forest Deep
-    parchment: '#e5e5c0',
-    antiqueBrass: '#b45309',
-    forestUniform: '#1e3a25',
-    crimson: '#991b1b',
-    textMain: '#e5e5c0',
-    textDim: '#8f8f70'
+    background: '#020617', // Deco Navy
+    surface: '#0f172a', // Deco Panel
+    parchment: '#fdfbf7', // Deco Paper
+    antiqueBrass: '#d4af37', // Deco Gold
+    forestUniform: '#0f172a', // Deco Panel for uniformity or specific background elements
+    crimson: '#dc143c', // Deco Crimson
+    textMain: '#fdfbf7', // Deco Paper
+    textDim: '#a3a3a3' // Lighter grey for dim text
   }
 };
 
 // Historical Keyframes for Timeline
 export const TIMELINE_KEYFRAMES = [
-  { year: 1893, label: 'Liga', color: '#1e3a25' },
-  { year: 1897, label: 'SND', color: '#b45309' },
-  { year: 1905, label: 'Revol.', color: '#991b1b' },
-  { year: 1918, label: 'Indep.', color: '#e5e5c0' },
-  { year: 1919, label: 'Versailles', color: '#b45309' },
-  { year: 1926, label: 'Coup', color: '#991b1b' },
-  { year: 1933, label: 'OWP Ban', color: '#991b1b' },
-  { year: 1939, label: 'WWII', color: '#000000' }
+  { year: 1893, label: 'Liga', color: '#d4af37' },
+  { year: 1897, label: 'SND', color: '#d4af37' },
+  { year: 1905, label: 'Revol.', color: '#dc143c' },
+  { year: 1918, label: 'Indep.', color: '#fdfbf7' },
+  { year: 1919, label: 'Versailles', color: '#d4af37' },
+  { year: 1926, label: 'Coup', color: '#dc143c' },
+  { year: 1933, label: 'OWP Ban', color: '#dc143c' },
+  { year: 1939, label: 'WWII', color: '#020617' }
 ];
 
 // Re-using data structure but ensuring types are consistent
 const DATA = {
   "metadata": {
     "title": "Baza Wiedzy o Endecji (Narodowej Demokracji)",
-    "version": "1.3",
+    "version": "2.0", // Updated version
   },
   "nodes": [
-    // For brevity in this code update, we will assume the GraphService handles the initial seed 
-    // or it's loaded via the Store's Init. The DATA object in constants is mainly a fallback seed.
-    // Keeping minimal valid seed for stability:
     { 
       "id": "dmowski_roman", "label": "Roman Dmowski", "type": "person", 
       "validity": { type: 'interval', start: '1864', end: '1939' } as TemporalFactType, 
@@ -53,7 +49,7 @@ const DATA = {
     { 
       "id": "mysli_polaka", "label": "Myśli nowoczesnego Polaka", "type": "publication", 
       "validity": { type: 'instant', timestamp: '1903' } as TemporalFactType, 
-      "importance": 1.0, "certainty": "confirmed"
+      "importance": 0.8, "certainty": "confirmed"
     }
   ],
   "edges": [
@@ -76,14 +72,13 @@ const mappedNodes: GraphNode[] = DATA.nodes.map(n => ({
   data: {
     id: n.id,
     label: n.label,
-    type: n.type, // Cast to any to bypass strictness if legacy type is still used
+    // Fix: Explicitly cast n.type to NodeType to satisfy the type checking
+    type: n.type as NodeType,
     validity: n.validity,
     importance: n.importance || 0.5,
-    // Fix: Explicitly cast certainty to the correct union type
     certainty: n.certainty as NodeData['certainty'],
     sources: n.sources,
     region: n.region,
-    // TODO: Map legacy 'year'/'dates' if present in DATA to 'validity'
   }
 }));
 
@@ -92,39 +87,36 @@ const mappedEdges: GraphEdge[] = DATA.edges.map((e, i) => ({
     id: `edge_${i}`,
     source: e.source,
     target: e.target,
-    // Fix: Explicitly cast relationType to the correct union type
     relationType: e.relationType as EdgeData['relationType'],
     temporal: e.temporal,
-    // Fix: Access certainty from the 'e' object
     certainty: e.certainty as EdgeData['certainty'],
     sources: e.sources,
     sign: 'positive' // Default sign for initial edges
-    // TODO: Map legacy 'label'/'dates'/'validFrom'/'validTo' if present in DATA
   }
 }));
 
 export const INITIAL_GRAPH: KnowledgeGraph = {
   nodes: mappedNodes,
   edges: mappedEdges,
-  meta: { version: "1.3" }
+  meta: { version: "2.0" } // Updated version
 };
 
 export const COLORS = {
-  person: '#e5e5c0',      // Parchment
-  organization: '#991b1b', // Crimson
-  event: '#b45309',       // Brass
-  publication: '#1e3a25', // Forest
-  concept: '#57534e',     // Stone
-  document: '#9ca3af',    // Grey
-  location: '#65a30d',    // Lime Green
+  person: '#fdfbf7',      // Deco Paper (Cream)
+  organization: '#d4af37', // Deco Gold
+  event: '#dc143c',       // Deco Crimson
+  publication: '#0f172a', // Deco Panel (Deep Navy)
+  concept: '#a3a3a3',     // Ash Grey
+  document: '#a3a3a3',    // Ash Grey
+  location: '#34d399',    // Emerald Green (a pop of color for map entities)
 };
 
-// Tier-4 Palette: Conspiratorial Grades
+// Art Deco Tiered Palette: Gold, Crimson, Panel, Navy, etc.
 export const COMMUNITY_COLORS = [
-  '#b45309', // Brass
-  '#991b1b', // Crimson
-  '#1e3a25', // Forest
-  '#3f3f46', // Zinc
-  '#78350f', // Amber-900
-  '#064e3b', // Emerald-900',
+  '#d4af37', // Deco Gold
+  '#dc143c', // Deco Crimson
+  '#0f172a', // Deco Panel
+  '#020617', // Deco Navy
+  '#e0dcd7', // Dimmer Paper
+  '#78350f', // Warm Brown
 ];

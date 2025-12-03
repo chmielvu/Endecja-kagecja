@@ -1,4 +1,5 @@
 
+
 import Graph from 'graphology';
 import { KnowledgeGraph } from '../types';
 

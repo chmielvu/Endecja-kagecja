@@ -1,6 +1,3 @@
-
-
-
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { useStore } from '../store';
 import { Play, Search, Scissors, Undo2, Redo2, FileJson, PanelLeftClose, LayoutGrid, Group, Eye, Lock, Activity, Map, BrainCircuit, X } from 'lucide-react';
@@ -8,7 +5,8 @@ import { generateGraphExpansion, runDeepAnalysis } from '../services/geminiServi
 import { detectDuplicates } from '../services/metrics';
 import { MieczykLoader } from './MieczykLoader';
 import { IngestionZone } from './IngestionZone';
-import { DuplicateMergerModal } from './DuplicateMergerModal'; // Assuming a dedicated modal or use inline
+import { BakeliteButton } from './BakeliteButton'; // NEW IMPORT
+import { BakeliteCard } from './BakeliteCard'; // NEW IMPORT for duplicate modal
 
 export const SidebarLeft: React.FC = () => {
   const { 
@@ -106,136 +104,136 @@ export const SidebarLeft: React.FC = () => {
 
   return (
     <div 
-      className={`${isSidebarOpen ? 'border-r' : 'border-r-0'} bg-bunker-dark border-antique-brass/30 overflow-hidden flex-shrink-0 relative shadow-2xl z-20 transition-all duration-300`}
+      className={`${isSidebarOpen ? 'border-r' : 'border-r-0'} bg-deco-navy border-deco-gold/30 overflow-hidden flex-shrink-0 relative shadow-2xl z-20 transition-all duration-300`}
       style={{ width: isSidebarOpen ? sidebarWidth : 0 }}
     >
-      <div style={{ width: sidebarWidth }} className="h-full flex flex-col p-5 overflow-y-auto bg-noise">
+      <div style={{ width: sidebarWidth }} className="h-full flex flex-col p-5 overflow-y-auto bg-deco-pattern">
         
         {/* Header */}
-        <div className="flex items-start justify-between mb-8 border-b border-antique-brass/20 pb-4">
+        <div className="flex items-start justify-between mb-8 border-b border-deco-gold/20 pb-4">
           <div className="flex items-center gap-3">
               {isThinking ? (
-                 <MieczykLoader size={40} className="text-antique-brass" />
+                 <MieczykLoader size={40} className="text-deco-gold" />
               ) : (
-                 <div className="w-10 h-10 border-2 border-antique-brass rounded-full flex items-center justify-center bg-forest-uniform/20">
-                    <span className="font-spectral font-bold text-xl text-parchment">E</span>
+                 <div className="w-10 h-10 border-2 border-deco-gold rounded-full flex items-center justify-center bg-deco-panel">
+                    <span className="font-spectral font-bold text-2xl text-deco-paper">E</span>
                  </div>
               )}
               <div>
-                  <h1 className="font-spectral font-bold text-2xl text-parchment tracking-wide leading-none uppercase">
-                    Endecja<span className="text-antique-brass">KG</span>
+                  <h1 className="font-spectral font-bold text-4xl text-deco-gold tracking-widest leading-none uppercase">
+                    Endecja<span className="text-deco-paper">KG</span>
                   </h1>
-                  <span className="text-[10px] text-forest-uniform font-mono tracking-widest border border-forest-uniform/30 px-1 rounded bg-parchment/10">
-                    HQ 1934
+                  <span className="text-[10px] text-deco-green font-mono tracking-widest border border-deco-green/30 px-1 rounded bg-deco-paper/10">
+                    HQ 1928
                   </span>
               </div>
           </div>
           
           <div className="flex items-center gap-1">
-             <button onClick={undo} disabled={!canUndo()} className="p-1 text-zinc-500 hover:text-parchment disabled:opacity-20"><Undo2 size={16}/></button>
-             <button onClick={redo} disabled={!canRedo()} className="p-1 text-zinc-500 hover:text-parchment disabled:opacity-20"><Redo2 size={16}/></button>
-             <button onClick={toggleSidebar} className="text-zinc-600 hover:text-antique-brass ml-2"><PanelLeftClose size={20}/></button>
+             <BakeliteButton variant="secondary" onClick={undo} disabled={!canUndo()} icon={<Undo2 size={16}/>} className="!p-1 !px-2"><span className="sr-only">Undo</span></BakeliteButton>
+             <BakeliteButton variant="secondary" onClick={redo} disabled={!canRedo()} icon={<Redo2 size={16}/>} className="!p-1 !px-2"><span className="sr-only">Redo</span></BakeliteButton>
+             <BakeliteButton variant="secondary" onClick={toggleSidebar} icon={<PanelLeftClose size={20}/>} className="!p-1 !px-2 ml-2"><span className="sr-only">Toggle Sidebar</span></BakeliteButton>
           </div>
         </div>
 
         <div className="space-y-8">
           
           {/* Ingestion Zone */}
-          <div className="space-y-2">
-             <label className="text-[10px] font-bold text-antique-brass uppercase tracking-[0.2em] font-spectral pl-1">Document Intelligence</label>
+          <BakeliteCard title="Document Intelligence" icon={<FileJson size={16}/>} bodyClassName="!p-0" className="!bg-transparent !border-none !shadow-none !clip-none">
              <IngestionZone />
-          </div>
+          </BakeliteCard>
 
           {/* Operations */}
-          <div className="space-y-3">
-            <label className="text-[10px] font-bold text-antique-brass uppercase tracking-[0.2em] font-spectral pl-1">Field Operations</label>
+          <BakeliteCard title="Field Operations" icon={<Activity size={16}/>} className="!bg-transparent !border-none !shadow-none !clip-none">
             <div className="grid grid-cols-2 gap-2">
-               <button onClick={handleExpand} className="btn-archival justify-center flex-col h-16 gap-1">
-                  <Search size={18}/> 
+               <BakeliteButton onClick={handleExpand} icon={<Search size={18}/>} className="flex-col h-16 gap-1">
                   <span className="text-[10px]">Expand Context</span>
-               </button>
-               <button onClick={() => recalculateGraph()} className="btn-archival justify-center flex-col h-16 gap-1">
-                  <Activity size={18}/> 
+               </BakeliteButton>
+               <BakeliteButton onClick={() => recalculateGraph()} icon={<Activity size={18}/>} className="flex-col h-16 gap-1">
                   <span className="text-[10px]">Update Metrics</span>
-               </button>
+               </BakeliteButton>
             </div>
-          </div>
+          </BakeliteCard>
 
-          {/* NEW: Intelligence & Hygiene */}
-          <div className="space-y-3">
-            <label className="text-[10px] font-bold text-antique-brass uppercase tracking-[0.2em] font-spectral pl-1">
-              Intelligence & Hygiene
-            </label>
+          {/* Intelligence & Hygiene */}
+          <BakeliteCard title="Intelligence & Hygiene" icon={<BrainCircuit size={16} />} className="!bg-transparent !border-none !shadow-none !clip-none">
             <div className="grid grid-cols-1 gap-2">
-               <button onClick={handleDeepAnalysis} className="btn-archival justify-center h-10 w-full hover:bg-[#b45309]/20">
-                  <BrainCircuit size={16} /> 
+               <BakeliteButton onClick={handleDeepAnalysis} icon={<BrainCircuit size={16} />}>
                   <span className="text-xs">NetworkX Analysis (Python)</span>
-               </button>
-               <button onClick={handleGrooming} className="btn-archival justify-center h-10 w-full hover:bg-[#b45309]/20">
-                  <Scissors size={16} /> 
+               </BakeliteButton>
+               <BakeliteButton onClick={handleGrooming} icon={<Scissors size={16} />}>
                   <span className="text-xs">Groom Duplicates</span>
-               </button>
+               </BakeliteButton>
             </div>
-          </div>
+          </BakeliteCard>
 
           {/* Visualization Controls */}
-          <div className="space-y-3">
-            <label className="text-[10px] font-bold text-antique-brass uppercase tracking-[0.2em] font-spectral pl-1">Map Layers</label>
-            
-            <button onClick={() => setSecurityMode(!isSecurityMode)} className={`w-full btn-archival justify-between ${isSecurityMode ? 'border-crimson-alert text-crimson-alert bg-crimson-alert/10' : ''}`}>
+          <BakeliteCard title="Map Layers" icon={<Map size={16}/>} className="!bg-transparent !border-none !shadow-none !clip-none">
+            <div className="grid grid-cols-1 gap-2">
+            <BakeliteButton 
+              onClick={() => setSecurityMode(!isSecurityMode)} 
+              className="justify-between"
+              variant={isSecurityMode ? 'danger' : 'primary'}
+            >
                <div className="flex items-center gap-2"><Lock size={14}/> Clandestine Risk</div>
-               <div className={`w-2 h-2 rounded-full ${isSecurityMode ? 'bg-crimson-alert' : 'bg-zinc-700'}`}></div>
-            </button>
+               <div className={`w-2 h-2 rounded-full ${isSecurityMode ? 'bg-deco-crimson' : 'bg-zinc-700'}`}></div>
+            </BakeliteButton>
 
-            <button onClick={() => setCommunityColoring(!activeCommunityColoring)} className="w-full btn-archival justify-between">
+            <BakeliteButton 
+              onClick={() => setCommunityColoring(!activeCommunityColoring)} 
+              className="justify-between"
+              variant={activeCommunityColoring ? 'primary' : 'secondary'}
+            >
                <div className="flex items-center gap-2"><Group size={14}/> Faction Colors</div>
-               <div className={`w-2 h-2 rounded-full ${activeCommunityColoring ? 'bg-antique-brass' : 'bg-zinc-700'}`}></div>
-            </button>
-          </div>
+               <div className={`w-2 h-2 rounded-full ${activeCommunityColoring ? 'bg-deco-gold' : 'bg-zinc-700'}`}></div>
+            </BakeliteButton>
+            </div>
+          </BakeliteCard>
 
           {/* Selected Intelligence */}
           {selectedNodeIds.length > 0 && (
-            <div className="p-4 bg-forest-uniform/10 border border-forest-uniform/30 rounded-sm relative overflow-hidden">
-               <div className="absolute top-0 right-0 p-1">
-                  <div className="text-[9px] font-mono text-antique-brass border border-antique-brass px-1">CONFIDENTIAL</div>
+            <BakeliteCard className="!bg-deco-panel/50 !border-deco-gold/30" chamfered={false}>
+               <div className="absolute top-0 right-0 p-2">
+                  <div className="text-[9px] font-mono text-deco-gold border border-deco-gold/50 px-1 py-0.5 rounded-sm bg-deco-panel/50">CONFIDENTIAL</div>
                </div>
-               <h3 className="font-spectral font-bold text-parchment text-lg">{selectedNodeIds.length} Targets Selected</h3>
+               <h3 className="font-spectral font-bold text-deco-paper text-lg">{selectedNodeIds.length} Targets Selected</h3>
                <p className="text-xs text-zinc-400 mt-1 italic">Awaiting orders.</p>
-            </div>
+            </BakeliteCard>
           )}
 
         </div>
         
-        <div className="mt-auto pt-6 border-t border-antique-brass/20 text-center">
-          <span className="text-[10px] text-zinc-600 font-mono">Bunker Terminal v4.2.0</span>
+        <div className="mt-auto pt-6 border-t border-deco-gold/20 text-center">
+          <span className="text-[10px] text-zinc-600 font-mono">Dmowski Salon Terminal v2.0.0</span>
         </div>
       </div>
 
       {/* NEW: Inline Duplicate Merger Modal */}
       {showDupeModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-           <div className="bg-bunker-dark border border-antique-brass rounded-lg max-w-lg w-full p-6 shadow-2xl">
-              <div className="flex justify-between items-center mb-4">
-                 <h3 className="text-white font-spectral text-lg font-bold">Duplicate Candidates</h3>
-                 <button onClick={() => setShowDupeModal(false)} className="text-zinc-500 hover:text-parchment"><X size={20}/></button>
-              </div>
+           <BakeliteCard 
+             title="Duplicate Candidates" 
+             icon={<Scissors size={20}/>} 
+             className="max-w-lg w-full"
+           >
               <p className="text-sm text-zinc-400 mb-4 font-spectral italic">Review and merge redundant entities to cleanse the archives.</p>
               
               <div className="max-h-[60vh] overflow-y-auto space-y-3 pr-2">
-                 {dupeCandidates.length > 0 ? dupes.map((d, i) => (
-                    <div key={i} className="flex items-center justify-between p-3 bg-zinc-900 rounded border border-zinc-800">
+                 {dupeCandidates.length > 0 ? dupeCandidates.map((d, i) => (
+                    <div key={i} className="flex items-center justify-between p-3 bg-deco-panel/50 rounded-none border border-deco-gold/30">
                        <div className="text-sm text-zinc-300 flex-1 min-w-0">
-                          <span className="text-antique-brass font-bold">{d.nodeA.label}</span> 
+                          <span className="text-deco-gold font-bold">{d.nodeA.label}</span> 
                           <span className="text-zinc-500 mx-1">vs</span> 
-                          <span className="text-parchment font-bold">{d.nodeB.label}</span>
+                          <span className="text-deco-paper font-bold">{d.nodeB.label}</span>
                           <p className="text-[10px] text-zinc-600 mt-1 italic truncate">{d.reason}</p>
                        </div>
-                       <button 
+                       <BakeliteButton 
                          onClick={() => executeMerge(d)} 
-                         className="px-4 py-2 ml-4 bg-forest-uniform hover:bg-forest-uniform/80 text-parchment text-xs rounded border border-antique-brass/30 transition-colors"
+                         className="ml-4 text-xs"
+                         variant="secondary"
                        >
                          Merge
-                       </button>
+                       </BakeliteButton>
                     </div>
                  )) : (
                    <div className="text-center text-zinc-600 py-8 text-sm italic">
@@ -245,13 +243,13 @@ export const SidebarLeft: React.FC = () => {
               </div>
               
               {dupeCandidates.length > 0 && (
-                <div className="mt-6 border-t border-zinc-800 pt-4">
-                  <button onClick={() => setShowDupeModal(false)} className="w-full py-2 bg-zinc-800 text-zinc-400 text-xs rounded hover:bg-zinc-700 transition-colors">
+                <div className="mt-6 border-t border-deco-gold/20 pt-4">
+                  <BakeliteButton onClick={() => setShowDupeModal(false)} className="w-full" variant="secondary">
                     Close (Review Later)
-                  </button>
+                  </BakeliteButton>
                 </div>
               )}
-           </div>
+           </BakeliteCard>
         </div>
       )}
     </div>

@@ -2,6 +2,7 @@ import React, { useEffect, useRef } from 'react';
 import { useStore } from '../store';
 import { Play, Pause, Rewind } from 'lucide-react';
 import { TIMELINE_KEYFRAMES } from '../constants';
+import { BakeliteButton } from './BakeliteButton'; // NEW IMPORT
 
 export const Timeline: React.FC = () => {
   const { timelineYear, setFilterYear, isPlaying, setIsPlaying } = useStore();
@@ -50,26 +51,29 @@ export const Timeline: React.FC = () => {
   };
 
   return (
-    <div className="h-16 bg-surface border-t border-archival-gold/20 flex items-center px-4 gap-4 shrink-0 relative z-20 shadow-[0_-5px_15px_rgba(0,0,0,0.5)]">
+    <div className="h-16 bg-deco-panel border-t border-deco-gold/20 flex items-center px-4 gap-4 shrink-0 relative z-20 shadow-[0_-5px_15px_rgba(0,0,0,0.5)]">
       
       {/* Controls */}
       <div className="flex items-center gap-2">
-         <button 
+         <BakeliteButton 
            onClick={handlePlayToggle}
-           className={`p-2 rounded-full border transition-all ${isPlaying 
-             ? 'bg-crimson/10 text-crimson border-crimson/50 animate-pulse' 
-             : 'bg-owp-green/10 text-owp-green border-owp-green/50 hover:bg-owp-green hover:text-white'}`}
-           title={isPlaying ? "Pause History" : "Play History"}
+           className={`!p-2 rounded-full ${isPlaying 
+             ? 'bg-deco-crimson/10 border-deco-crimson/50' 
+             : 'bg-deco-gold/10 border-deco-gold/50'}`}
+           variant={isPlaying ? 'danger' : 'primary'}
+           icon={isPlaying ? <Pause size={16} fill="currentColor" /> : <Play size={16} fill="currentColor" />}
          >
-           {isPlaying ? <Pause size={16} fill="currentColor" /> : <Play size={16} fill="currentColor" />}
-         </button>
+           <span className="sr-only">{isPlaying ? "Pause History" : "Play History"}</span>
+         </BakeliteButton>
          
-         <button 
+         <BakeliteButton 
            onClick={resetTimeline}
-           className={`text-xs font-mono px-3 py-1.5 rounded-sm transition-colors whitespace-nowrap border flex items-center gap-2 ${timelineYear === null ? 'bg-archival-gold text-white border-archival-gold' : 'bg-transparent text-zinc-500 border-zinc-700 hover:border-zinc-500'}`}
+           className="text-xs font-mono !px-3 !py-1.5 whitespace-nowrap"
+           variant={timelineYear === null ? 'primary' : 'secondary'}
+           icon={<Rewind size={12} />}
          >
-           <Rewind size={12} /> ALL TIME
-         </button>
+           ALL TIME
+         </BakeliteButton>
       </div>
       
       <div className="w-[1px] h-8 bg-zinc-800 mx-2"></div>
@@ -89,7 +93,7 @@ export const Timeline: React.FC = () => {
                opacity: timelineYear ? 1 : 0
              }}
            >
-              <span className="text-archival-gold font-bold text-lg font-spectral bg-surface px-2 border border-archival-gold/30 rounded">
+              <span className="text-deco-gold font-bold text-lg font-spectral bg-deco-panel px-2 border border-deco-gold/30 rounded">
                 {timelineYear}
               </span>
            </div>
@@ -120,7 +124,8 @@ export const Timeline: React.FC = () => {
           
           {/* Progress Bar */}
           <div 
-            className="absolute h-1 bg-archival-gold rounded-l-lg transition-all duration-100"
+            className="absolute h-1 bg-deco-gold rounded-l-lg transition-all duration-100"
+            // Fix: Changed MIN_MIN_YEAR to MIN_YEAR
             style={{ width: timelineYear ? `${((timelineYear - MIN_YEAR) / (MAX_YEAR - MIN_YEAR)) * 100}%` : '100%' }}
           ></div>
 
@@ -136,9 +141,9 @@ export const Timeline: React.FC = () => {
             }}
             className="w-full h-4 bg-transparent appearance-none cursor-pointer z-10 
               [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 
-              [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white 
-              [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-archival-gold 
-              [&::-webkit-slider-thumb]:shadow-[0_0_10px_rgba(180,83,9,0.5)]
+              [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-deco-paper 
+              [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-deco-gold 
+              [&::-webkit-slider-thumb]:shadow-[0_0_10px_rgba(212,175,55,0.5)]
               hover:[&::-webkit-slider-thumb]:scale-110 transition-all"
           />
         </div>

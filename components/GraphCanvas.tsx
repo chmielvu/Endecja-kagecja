@@ -1,5 +1,6 @@
 
 
+
 import React, { useEffect, useRef, useState } from 'react';
 import cytoscape from 'cytoscape';
 import cola from 'cytoscape-cola';
@@ -94,9 +95,9 @@ export const GraphCanvas: React.FC = () => {
         {
           selector: 'node',
           style: {
-            'shape': 'cut-rectangle',
+            'shape': 'round-rectangle', // More Art Deco feel than cut-rectangle
             'label': 'data(label)',
-            'color': THEME.colors.parchment,
+            'color': THEME.colors.parchment, // Deco Paper
             'font-family': 'Spectral, serif',
             'font-weight': 'bold',
             'font-size': '14px',
@@ -106,13 +107,14 @@ export const GraphCanvas: React.FC = () => {
             'text-max-width': '100px',
             'background-fit': 'cover',
             'border-width': 2,
-            'border-style': 'dashed',
-            'border-color': THEME.colors.antiqueBrass,
+            'border-style': 'solid', // Solid gold border
+            'border-color': THEME.colors.antiqueBrass, // Deco Gold
+            'background-color': THEME.colors.surface, // Deco Panel default background
             // Use importance for size, fallback to pagerank
             'width': (ele: any) => 60 + ((ele.data('importance') || ele.data('pagerank') || 0) * 100),
             'height': (ele: any) => 40 + ((ele.data('importance') || ele.data('pagerank') || 0) * 80),
             'text-outline-width': 2,
-            'text-outline-color': '#050a06',
+            'text-outline-color': THEME.colors.background, // Deco Navy
             'text-outline-opacity': 1,
             'shadow-blur': 0,
             'transition-property': 'background-color, width, height, border-width, border-color, opacity, display',
@@ -123,20 +125,19 @@ export const GraphCanvas: React.FC = () => {
           selector: 'edge',
           style: {
             'width': 2,
-            'line-color': THEME.colors.antiqueBrass,
-            'target-arrow-color': THEME.colors.antiqueBrass,
+            'line-color': THEME.colors.antiqueBrass, // Deco Gold
+            'target-arrow-color': THEME.colors.antiqueBrass, // Deco Gold
             'target-arrow-shape': 'triangle',
             'curve-style': 'bezier',
-            'opacity': 0.6,
+            'opacity': 0.7,
             'label': 'data(label)', // Show relationship type or label
             'font-size': '8px',
-            'color': THEME.colors.parchment,
+            'color': THEME.colors.parchment, // Deco Paper
             'text-outline-width': 1,
-            'text-outline-color': '#050a06',
+            'text-outline-color': THEME.colors.surface, // Deco Panel
             'text-outline-opacity': 1,
             'text-background-opacity': 0.8,
-            'text-background-color': THEME.colors.forestUniform,
-            'text-background-shape': 'roundrectangle',
+            'text-background-color': THEME.colors.surface, // Deco Panel
             'edge-text-rotation': 'autorotate',
           } as any
         },
@@ -145,12 +146,12 @@ export const GraphCanvas: React.FC = () => {
           style: {
             'border-width': 4,
             'border-style': 'solid',
-            'border-color': THEME.colors.parchment,
-            'line-color': THEME.colors.parchment,
-            'target-arrow-color': THEME.colors.parchment,
+            'border-color': THEME.colors.crimson, // Deco Crimson for selection
+            'line-color': THEME.colors.crimson, // Deco Crimson
+            'target-arrow-color': THEME.colors.crimson, // Deco Crimson
             'opacity': 1,
             'shadow-blur': 10,
-            'shadow-color': THEME.colors.antiqueBrass
+            'shadow-color': THEME.colors.antiqueBrass // Deco Gold glow
           } as any
         }
       ],
@@ -272,16 +273,16 @@ export const GraphCanvas: React.FC = () => {
             if (isSecurityMode) {
                 const risk = data.security?.risk || 0;
                 if (risk > 0.5) {
-                    node.style('border-color', THEME.colors.crimson);
+                    node.style('border-color', THEME.colors.crimson); // Deco Crimson
                     node.style('border-width', 4);
                 } else {
-                    node.style('border-color', THEME.colors.forestUniform);
+                    node.style('border-color', THEME.colors.forestUniform); // Deco Panel
                 }
             } else {
-                // Default Stitched Look
-                node.style('border-color', THEME.colors.antiqueBrass);
+                // Default Gold Border
+                node.style('border-color', THEME.colors.antiqueBrass); // Deco Gold
                 node.style('border-width', 2);
-                node.style('border-style', 'dashed');
+                node.style('border-style', 'solid'); // Solid border for Art Deco
             }
 
             // Certainty: Alleged = Dotted, Hypothesized = Dashed-dotted
@@ -293,18 +294,18 @@ export const GraphCanvas: React.FC = () => {
                     node.style('border-style', 'dashed-dotted');
                     node.style('opacity', 0.6);
                 } else {
-                    node.style('border-style', 'dashed'); // Default for confirmed/disputed
+                    node.style('border-style', 'solid'); // Default for confirmed/disputed
                     node.style('opacity', 1);
                 }
             } else {
-                node.style('border-style', 'dashed');
+                node.style('border-style', 'solid');
                 node.style('opacity', 1);
             }
 
 
             // Deepening Highlight
             if (deepeningNodeId && data.id === deepeningNodeId) {
-                node.style('border-color', THEME.colors.crimson);
+                node.style('border-color', THEME.colors.crimson); // Deco Crimson
                 node.style('border-width', 4);
             }
         });
@@ -312,11 +313,11 @@ export const GraphCanvas: React.FC = () => {
   }, [isSecurityMode, showCertainty, deepeningNodeId, filteredGraph]); // Added filteredGraph to trigger style updates on filter changes
 
   return (
-    <div className="w-full h-full relative bg-bunker-dark">
+    <div className="w-full h-full relative bg-deco-navy">
       <div ref={containerRef} className="w-full h-full" />
       
       {timelineYear !== null && (
-          <div className="absolute top-6 left-6 pointer-events-none opacity-10 font-spectral text-[8rem] font-bold text-parchment leading-none z-0">
+          <div className="absolute top-6 left-6 pointer-events-none opacity-10 font-spectral text-[8rem] font-bold text-deco-paper leading-none z-0">
              {timelineYear}
           </div>
       )}
@@ -333,10 +334,10 @@ export const GraphCanvas: React.FC = () => {
         >
           {/* Triangular Shape */}
           <div 
-            className="bg-parchment text-paper-ink w-48 p-3 pt-2 relative"
+            className="bg-deco-paper text-paper-ink w-48 p-3 pt-2 relative" // Deco Paper background, Ink text
             style={{ clipPath: 'polygon(0% 0%, 100% 0%, 100% 85%, 50% 100%, 0% 85%)' }}
           >
-             <div className="text-center border-b border-antique-brass/50 pb-1 mb-1">
+             <div className="text-center border-b border-deco-gold/50 pb-1 mb-1">
                 <span className="font-spectral font-bold uppercase tracking-wider text-sm">{tooltip.data.label}</span>
              </div>
              {tooltip.data.description && (
@@ -361,7 +362,7 @@ export const GraphCanvas: React.FC = () => {
              {/* Rank Chevron Overlay */}
              {(tooltip.data.pagerank || 0) > 0.1 && (
                  <div className="absolute top-0 right-0 p-1">
-                    <div className="w-0 h-0 border-l-[6px] border-l-transparent border-r-[6px] border-r-transparent border-t-[8px] border-t-antique-brass"></div>
+                    <div className="w-0 h-0 border-l-[6px] border-l-transparent border-r-[6px] border-r-transparent border-t-[8px] border-t-deco-gold"></div>
                  </div>
              )}
           </div>
@@ -371,18 +372,18 @@ export const GraphCanvas: React.FC = () => {
       {/* Context Menu (Archival Action) */}
       {contextMenu && (
         <div 
-          className="fixed z-50 bg-parchment border-2 border-forest-uniform shadow-[5px_5px_0px_rgba(30,58,37,0.5)] py-1 min-w-[180px] animate-in fade-in zoom-in-95 duration-100"
+          className="fixed z-50 bg-deco-paper border-2 border-deco-panel shadow-[5px_5px_0px_rgba(15,23,42,0.5)] py-1 min-w-[180px] animate-in fade-in zoom-in-95 duration-100" // Deco Paper, Deco Panel shadow
           style={{ left: contextMenu.x, top: contextMenu.y }}
         >
           <button 
             onClick={() => handleDeepenContext(contextMenu.nodeId)}
-            className="w-full px-4 py-2 text-left text-sm font-bold font-spectral uppercase text-forest-uniform hover:bg-antique-brass/20 flex items-center gap-2 transition-colors"
+            className="w-full px-4 py-2 text-left text-sm font-bold font-spectral uppercase text-deco-panel hover:bg-deco-gold/20 flex items-center gap-2 transition-colors" // Deco Panel text
           >
             <BookOpenCheck size={14} /> Research This Node
           </button>
           <button 
             onClick={() => setContextMenu(null)}
-            className="w-full px-4 py-2 text-left text-xs text-zinc-600 hover:bg-zinc-200 flex items-center gap-2 transition-colors border-t border-forest-uniform/20"
+            className="w-full px-4 py-2 text-left text-xs text-zinc-600 hover:bg-zinc-200 flex items-center gap-2 transition-colors border-t border-deco-panel/20" // Deco Panel border
           >
             <X size={12} /> Dismiss
           </button>

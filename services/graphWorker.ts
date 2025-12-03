@@ -1,9 +1,11 @@
 
 
+
 import cytoscape from 'cytoscape';
 import louvain from 'graphology-communities-louvain';
 import { KnowledgeGraph, NodeData, EdgeData, TemporalFactType, GraphEdge } from '../types'; // Fix: Import GraphEdge
 import { buildGraphologyGraph } from './graphUtils';
+import { THEME } from '../constants'; // Import THEME for consistent color usage
 
 // Helper to extract a single year from TemporalFactType for filtering
 function getYearFromTemporalFact(temporal?: TemporalFactType): number | undefined {

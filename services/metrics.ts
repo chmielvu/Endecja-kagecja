@@ -112,7 +112,7 @@ export async function detectDuplicatesSemantic(graph: KnowledgeGraph, threshold:
         }
       }
     }
-  }
+  });
   return candidates.sort((a, b) => b.similarity - a.similarity);
 }
 
